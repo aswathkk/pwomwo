@@ -15,9 +15,10 @@ export interface StatBlock {
 }
 
 export interface Bar {
-  h: number
+  /** Axis tick: the start of the bucket, or the weekday. */
   label: string
-  tip: string
+  /** Tooltip heading: the whole bucket, or the weekday in the plural. */
+  range: string
   count: number
 }
 
@@ -25,7 +26,8 @@ export interface HeatCell {
   date: Date | null
   count: number
   level: 0 | 1 | 2 | 3 | 4
-  tip: string
+  /** Tooltip heading: the day this cell stands for. */
+  label: string
 }
 
 export interface MonthLabel {
@@ -37,7 +39,6 @@ export interface Stats {
   total: number
   blocks: StatBlock[]
   daily: Bar[]
-  hourLabels: string[]
   weekly: Bar[]
   heatCells: HeatCell[]
   monthLabels: MonthLabel[]
@@ -76,10 +77,6 @@ function fmtLongDate(d: Date): string {
     month: 'short',
     year: 'numeric',
   })
-}
-
-function plural(n: number): string {
-  return n === 1 ? '1 focus session' : `${n} focus sessions`
 }
 
 export function computeStats(
@@ -134,18 +131,11 @@ export function computeStats(
     const minuteOfDay = local.getUTCHours() * 60 + local.getUTCMinutes()
     dailyCounts[Math.floor(minuteOfDay / opts.bucket) % bucketCount]!++
   }
-  const dailyMax = Math.max(1, ...dailyCounts)
   const daily: Bar[] = dailyCounts.map((count, i) => ({
     count,
-    h: count === 0 ? 0 : Math.max(3, Math.round((count / dailyMax) * 100)),
     label: fmtHour(i * opts.bucket, hour12),
-    tip: `${plural(count)} between ${fmtHour(i * opts.bucket, hour12)} and ${fmtHour(
-      ((i + 1) * opts.bucket) % 1440,
-      hour12,
-    )}`,
+    range: `${fmtHour(i * opts.bucket, hour12)} – ${fmtHour(((i + 1) * opts.bucket) % 1440, hour12)}`,
   }))
-  const hourLabels: string[] = []
-  for (let h = 0; h < 24; h += 3) hourLabels.push(fmtHour(h * 60, hour12))
 
   // ── Weekly distribution ───────────────────────────────────────────────
   const weekCounts = new Array<number>(7).fill(0)
@@ -153,16 +143,13 @@ export function computeStats(
     const local = localDateOfRecord(r.endedAt, r.tzOffsetMin)
     weekCounts[local.getUTCDay()]!++
   }
-  const weekMax = Math.max(1, ...weekCounts)
   const weekly: Bar[] = []
   for (let i = 0; i < 7; i++) {
     const day = (opts.weekStart + i) % 7
-    const count = weekCounts[day]!
     weekly.push({
-      count,
-      h: count === 0 ? 0 : Math.max(3, Math.round((count / weekMax) * 100)),
+      count: weekCounts[day]!,
       label: WEEKDAYS[day]!,
-      tip: `${plural(count)} on ${WEEKDAYS[day]}days`,
+      range: `${WEEKDAYS[day]}days`,
     })
   }
 
@@ -197,16 +184,15 @@ export function computeStats(
       date: new Date(d),
       count,
       level: count === 0 ? 0 : (Math.min(4, Math.ceil((count / heatMax) * 4)) as 1 | 2 | 3 | 4),
-      tip: `${plural(count)} on ${fmtLongDate(d)}`,
+      label: fmtLongDate(d),
     })
   }
-  while (heatCells.length % 7 !== 0) heatCells.push({ date: null, count: 0, level: 0, tip: '' })
+  while (heatCells.length % 7 !== 0) heatCells.push({ date: null, count: 0, level: 0, label: '' })
 
   return {
     total,
     blocks,
     daily,
-    hourLabels,
     weekly,
     heatCells,
     monthLabels,

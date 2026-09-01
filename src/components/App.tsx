@@ -4,8 +4,9 @@ import { useAppState } from '../hooks/useStore'
 import { Scene } from './Scene'
 import { TopBar } from './TopBar'
 import { TimerStage } from './TimerStage'
-import { HistoryPanel } from './HistoryPanel'
 import { SettingsModal } from './SettingsModal'
+// History pulls in the charting library; keep it out of first paint.
+const HistoryPanel = lazy(() => import('./HistoryPanel').then((m) => ({ default: m.HistoryPanel })))
 // Pairing pulls in the QR encoder and scanner; keep them out of first paint.
 const PairingDialog = lazy(() =>
   import('./PairingDialog').then((m) => ({ default: m.PairingDialog })),
@@ -167,7 +168,9 @@ export function App() {
       </div>
 
       {overlay === 'history' ? (
-        <HistoryPanel onClose={close} onOpenSettings={openSettingsAt} />
+        <Suspense fallback={null}>
+          <HistoryPanel onClose={close} onOpenSettings={openSettingsAt} />
+        </Suspense>
       ) : null}
       {overlay === 'settings' ? (
         <SettingsModal

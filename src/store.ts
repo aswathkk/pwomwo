@@ -138,6 +138,9 @@ export class Store {
         toast('History cleared', 'warn')
       },
     })
+    // Before any link exists, so a device paired in an earlier session shows up
+    // as offline rather than as nothing at all.
+    await this.sync.loadRemembered()
 
     this.scheduler.start()
   }

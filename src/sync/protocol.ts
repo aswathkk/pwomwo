@@ -3,7 +3,7 @@ import type { HistoryRepo } from '../history/repo'
 import { PeerLink, type LinkState } from './peer'
 import { decodePairing, type PairingPayload } from './envelope'
 import { fingerprintOfHex, publicKeyHex, sign, verify } from './identity'
-import { put } from '../db'
+import { getAll, put } from '../db'
 import { APP_VERSION } from '../version'
 
 const MAX_PEERS = 3
@@ -45,6 +45,13 @@ interface PairingWaiter {
  */
 export class SyncManager {
   private readonly links = new Set<PeerLink>()
+  /**
+   * Devices this one has paired with before, keyed by device id. A reload
+   * destroys every `RTCPeerConnection`, but it must not destroy the pairing:
+   * without this the toolbar came back empty and the user assumed the pairing
+   * was gone, when only the connection was.
+   */
+  private readonly remembered = new Map<string, PeerRecord>()
   /** The half-finished handshake, and which half of it is still outstanding. */
   private pending: PeerLink | null = null
   private pendingRole: 'offer' | 'answer' | null = null
@@ -66,22 +73,52 @@ export class SyncManager {
     return [...this.links].filter((l) => l.linkState === 'connected').length
   }
 
+  /**
+   * Remembered devices first, so a paired device survives a reload as an
+   * offline entry, then whatever a live link knows overwrites it by device id.
+   * A handshake in flight is not a peer yet: listing it would put a nameless
+   * device, with a Forget button, in the toolbar half way through pairing.
+   */
   statuses(): PeerStatus[] {
-    // A handshake in flight is not a peer yet. Listing it would put a nameless
-    // device, with a Forget button, in the toolbar half way through pairing.
-    return [...this.links]
-      .filter((l) => l.verified || l.linkState === 'connected')
-      .map((l) => ({
-        deviceId: l.peerId,
-        name: l.peerName,
+    const byDevice = new Map<string, PeerStatus>()
+    for (const record of this.remembered.values()) {
+      byDevice.set(record.deviceId, {
+        deviceId: record.deviceId,
+        name: record.name,
+        state: 'offline',
+        lastSyncAt: record.lastConnected,
+      })
+    }
+    const anonymous: PeerStatus[] = []
+    for (const link of this.links) {
+      if (!link.verified && link.linkState !== 'connected') continue
+      const status: PeerStatus = {
+        deviceId: link.peerId,
+        name: link.peerName,
         state:
-          l.linkState === 'connected'
+          link.linkState === 'connected'
             ? 'connected'
-            : l.linkState === 'connecting'
+            : link.linkState === 'connecting'
               ? 'connecting'
               : 'offline',
-        lastSyncAt: l.lastSyncAt,
-      }))
+        lastSyncAt: link.lastSyncAt,
+      }
+      // A link that has connected but not yet said hello has no id to key on.
+      if (link.peerId) byDevice.set(link.peerId, status)
+      else anonymous.push(status)
+    }
+    return [...byDevice.values(), ...anonymous]
+  }
+
+  /**
+   * Restore the paired set from storage. Called once at startup, before any
+   * link exists, so the UI can show paired-but-offline instead of unpaired.
+   */
+  async loadRemembered(): Promise<void> {
+    for (const record of await getAll<PeerRecord>('peers')) {
+      if (record?.deviceId) this.remembered.set(record.deviceId, record)
+    }
+    this.host.onPeersChanged(this.statuses())
   }
 
   /** ── Pairing ────────────────────────────────────────────────────────── */
@@ -179,10 +216,16 @@ export class SyncManager {
     else link.close()
   }
 
-  /** Only a verified peer counts against the limit; dead attempts must not. */
+  /**
+   * The limit is on pairings, not on live connections, so it has to survive a
+   * reload the same way the list does. Dead handshake attempts must not count.
+   */
   private assertRoom(): void {
-    const paired = [...this.links].filter((l) => l.verified && l.linkState !== 'closed').length
-    if (paired >= MAX_PEERS) {
+    const paired = new Set(this.remembered.keys())
+    for (const link of this.links) {
+      if (link.verified && link.linkState !== 'closed' && link.peerId) paired.add(link.peerId)
+    }
+    if (paired.size >= MAX_PEERS) {
       throw new Error(`You can pair up to ${MAX_PEERS} devices. Forget one first.`)
     }
   }
@@ -347,6 +390,7 @@ export class SyncManager {
       lastConnected: Date.now(),
     }
     await put('peers', record)
+    this.remembered.set(record.deviceId, record)
 
     this.host.toast(`${link.peerName} connected`, 'good')
     this.host.onPeersChanged(this.statuses())
@@ -483,6 +527,7 @@ export class SyncManager {
     }
     const { del } = await import('../db')
     await del('peers', deviceId)
+    this.remembered.delete(deviceId)
     this.host.onPeersChanged(this.statuses())
   }
 

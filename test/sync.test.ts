@@ -1,4 +1,7 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
+import { clear, getAll, put } from '../src/db'
+import { SyncManager } from '../src/sync/protocol'
+import type { PeerRecord, PeerStatus } from '../src/types'
 import { base45Decode, base45Encode } from '../src/sync/codec'
 import { compactSdp, deserializeCompact, expandSdp, serializeCompact } from '../src/sync/sdp'
 import { decodePairing, encodePairing, PREFIX } from '../src/sync/envelope'
@@ -124,5 +127,57 @@ describe('identity helpers', () => {
     expect(fnv1a('abc')).toBe(fnv1a('abc'))
     expect(fnv1a('abc')).toBeGreaterThanOrEqual(0)
     expect(fnv1a('abc')).not.toBe(fnv1a('abd'))
+  })
+})
+
+describe('remembered peers', () => {
+  const host = (onPeersChanged: (peers: PeerStatus[]) => void) =>
+    ({
+      identity: { deviceId: 'dev_self' } as never,
+      repo: {} as never,
+      stunEnabled: () => false,
+      getTimerDoc: () => ({}) as never,
+      applyTimerDoc: () => {},
+      onPeersChanged,
+      toast: () => {},
+      confirmClear: async () => false,
+      clearHistoryLocally: async () => {},
+    }) as never
+
+  const record = (deviceId: string, name: string, lastConnected: number): PeerRecord => ({
+    deviceId,
+    name,
+    fingerprint: `fp_${deviceId}`,
+    lastConnected,
+  })
+
+  beforeEach(async () => {
+    await clear('peers')
+  })
+
+  test('a pairing survives a reload as an offline device', async () => {
+    await put('peers', record('dev_a', 'Phone', 1_700_000_000_000))
+    await put('peers', record('dev_b', 'Laptop', 1_700_000_100_000))
+
+    let published: PeerStatus[] = []
+    const sync = new SyncManager(host((peers) => (published = peers)))
+    await sync.loadRemembered()
+
+    const statuses = sync.statuses()
+    expect(statuses).toHaveLength(2)
+    expect(statuses.every((p) => p.state === 'offline')).toBe(true)
+    expect(statuses.map((p) => p.name).sort()).toEqual(['Laptop', 'Phone'])
+    expect(statuses.find((p) => p.deviceId === 'dev_a')?.lastSyncAt).toBe(1_700_000_000_000)
+    // The UI has to be told, or the toolbar stays empty until something else moves.
+    expect(published).toEqual(statuses)
+  })
+
+  test('forgetting a device drops it from the restored list', async () => {
+    await put('peers', record('dev_a', 'Phone', 1))
+    const sync = new SyncManager(host(() => {}))
+    await sync.loadRemembered()
+    await sync.forget('dev_a')
+    expect(sync.statuses()).toHaveLength(0)
+    expect(await getAll<PeerRecord>('peers')).toHaveLength(0)
   })
 })

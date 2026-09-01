@@ -7,6 +7,16 @@ import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dot, Icons, Key } from './primitives'
 
+/**
+ * An offline row still carries the last time the two devices agreed, which is
+ * the only thing that tells the user whether the pairing is stale or just idle.
+ */
+function lastSyncLabel(lastSyncAt: number | null): string {
+  if (!lastSyncAt) return 'offline'
+  const days = Math.floor((Date.now() - lastSyncAt) / 86_400_000)
+  return days <= 0 ? 'offline · today' : `offline · ${days}d`
+}
+
 export function TopBar({
   peers,
   chromeHidden,
@@ -30,11 +40,15 @@ export function TopBar({
   const connected = peers.filter((p) => p.state === 'connected')
   const connecting = peers.filter((p) => p.state === 'connecting')
   const tone = connected.length ? 'good' : connecting.length ? 'warn' : 'off'
+  // Paired but unreachable is not the same as unpaired, and after a reload it
+  // is the common case: the connection dies with the page, the pairing does not.
   const label = connected.length
     ? `${connected.length} ${connected.length === 1 ? 'device' : 'devices'}`
     : connecting.length
       ? 'connecting'
-      : 'not paired'
+      : peers.length
+        ? 'offline'
+        : 'not paired'
 
   return (
     <header className="flex items-center justify-between gap-3 px-4.5 pt-[calc(1.125rem+var(--safe-t))] sm:px-8 sm:pt-6.5">
@@ -84,7 +98,9 @@ export function TopBar({
             <TooltipContent>
               {connected.length
                 ? `Mirroring the timer with ${connected.map((p) => p.name).join(', ')}`
-                : 'Pair a device to mirror the timer and merge history'}
+                : peers.length
+                  ? 'Still paired, but not connected. Show a code on either device to reconnect.'
+                  : 'Pair a device to mirror the timer and merge history'}
             </TooltipContent>
           </Tooltip>
 
@@ -107,12 +123,12 @@ export function TopBar({
                     <span className="min-w-0 truncate">{p.name}</span>
                   </span>
                   <span className="flex items-center gap-2.5">
-                    <span className="text-[11px] text-ink-muted">
+                    <span className="text-[11px] whitespace-nowrap text-ink-muted">
                       {p.state === 'connected'
                         ? 'synced just now'
                         : p.state === 'connecting'
                           ? 'reconnecting…'
-                          : 'offline'}
+                          : lastSyncLabel(p.lastSyncAt)}
                     </span>
                     <button
                       type="button"

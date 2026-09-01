@@ -10,9 +10,11 @@ import { SettingsModal } from './SettingsModal'
 const PairingDialog = lazy(() =>
   import('./PairingDialog').then((m) => ({ default: m.PairingDialog })),
 )
-import { Toasts } from './Toasts'
 import { ConfirmHost } from './ConfirmHost'
-import { Icons, cls } from './primitives'
+import { Button } from '@/components/ui/button'
+import { Toaster } from '@/components/ui/sonner'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { Icons } from './primitives'
 
 export type Overlay = 'none' | 'history' | 'settings' | 'pairing'
 
@@ -113,7 +115,7 @@ export function App() {
   const fade = chromeHidden ? 'pointer-events-none opacity-0' : 'opacity-100'
 
   return (
-    <>
+    <TooltipProvider>
       <Scene theme={settings.theme} isBreak={doc.phase !== 'focus'} />
 
       {/* `store.init()` reads the persisted timer from IndexedDB. Painting the
@@ -127,6 +129,7 @@ export function App() {
         <div className={`transition-opacity duration-300 ${fade}`}>
           <TopBar
             peers={state.peers}
+            chromeHidden={chromeHidden}
             onOpenHistory={() => setOverlay('history')}
             onOpenPairing={() => setOverlay('pairing')}
           />
@@ -143,15 +146,16 @@ export function App() {
         <div
           className={`flex items-end justify-end px-4.5 pb-[calc(1rem+var(--safe-b))] transition-opacity duration-300 sm:px-8 sm:pb-[calc(1.375rem+var(--safe-b))] ${fade}`}
         >
-          <button
-            type="button"
-            className={`${cls.ghostButton} rounded-lg border-none`}
+          <Button
+            variant="ghost"
+            size="icon-xl"
+            className="rounded-lg border-none"
             aria-label="Toggle fullscreen"
             title="Fullscreen"
             onClick={toggleFullscreen}
           >
             {Icons.fullscreen}
-          </button>
+          </Button>
         </div>
 
         <div aria-hidden className="fixed inset-x-0 bottom-0 h-[3px] bg-white/10">
@@ -178,8 +182,8 @@ export function App() {
         </Suspense>
       ) : null}
 
-      <Toasts />
+      <Toaster />
       <ConfirmHost />
-    </>
+    </TooltipProvider>
   )
 }

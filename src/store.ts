@@ -22,6 +22,7 @@ import { notifyPhaseEnd, permission } from './pwa/notifications'
 import { WakeLock } from './pwa/wakelock'
 import { setBadge } from './pwa/badge'
 import { playSound, type SoundName } from './pwa/sound'
+import { startTimerSound, stopTimerSound, TIMER_SOUND_NONE } from './pwa/timer-sound'
 import { toast, type Tone } from './ui/toast-store'
 import { confirmDialog } from './ui/dialog-store'
 import { formatClock, uuidv5 } from './util'
@@ -423,8 +424,23 @@ export class Store {
     if (this.doc.status === 'running' && this.settings.keepScreenAwake) void this.wakeLock.request()
     else void this.wakeLock.release()
 
+    this.syncTimerSound()
+
     setBadge(this.doc.status === 'running' ? Math.ceil(this.remainingMs / 60_000) : null)
     this.updateTitle()
+  }
+
+  /**
+   * The bed that plays *during* a session. Focus only, as in Marinara: a break
+   * is meant to sound like one. Starting is idempotent, so changing the volume
+   * mid-session re-levels the loop instead of restarting it.
+   */
+  syncTimerSound(): void {
+    const { timerSound, timerSoundVolume, timerSoundBpm } = this.settings
+    const wanted =
+      this.doc.status === 'running' && this.doc.phase === 'focus' && timerSound !== TIMER_SOUND_NONE
+    if (wanted) startTimerSound(timerSound, timerSoundVolume, timerSoundBpm)
+    else stopTimerSound()
   }
 
   private updateTitle(): void {

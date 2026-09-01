@@ -20,6 +20,7 @@ yarn-error.log*
 bun-debug.log*
 
 # Editors
+.claude/launch.json
 .idea/
 .vscode/*
 !.vscode/extensions.json

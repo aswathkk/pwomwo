@@ -44,7 +44,7 @@ src/
   timer/      state machine + wall-clock scheduler
   history/    IndexedDB repository, stats, import/export
   sync/       identity, SDP compaction, QR pairing, peer protocol
-  pwa/        service worker, notifications, wake lock, badge, alert sounds
+  pwa/        service worker, notifications, wake lock, badge, alert and timer sounds
   components/ React views
   store.ts    the single owner of mutable state
 ```

@@ -15,7 +15,8 @@ export const SOUNDS: { id: SoundName; label: string }[] = [
 
 let ctx: AudioContext | null = null
 
-function context(): AudioContext {
+/** One context for the whole app: the alert chime and the timer bed share it. */
+export function audioContext(): AudioContext {
   ctx ??= new AudioContext()
   if (ctx.state === 'suspended') void ctx.resume()
   return ctx
@@ -61,7 +62,7 @@ function recipe(name: SoundName): Partial_[] {
 export function playSound(name: SoundName, volume: number): void {
   if (volume <= 0) return
   try {
-    const ac = context()
+    const ac = audioContext()
     const master = ac.createGain()
     master.gain.value = volume
     master.connect(ac.destination)

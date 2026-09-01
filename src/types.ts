@@ -65,6 +65,11 @@ export interface Settings {
   soundEnabled: boolean
   soundName: string
   volume: number
+  /** `'none'`, or an id from `TIMER_SOUNDS`: what plays while focus runs. */
+  timerSound: string
+  /** Tempo of a periodic beat, in beats per minute. Ignored by ambient beds. */
+  timerSoundBpm: number
+  timerSoundVolume: number
   deviceName: string
   stunEnabled: boolean
   idleHideControls: boolean

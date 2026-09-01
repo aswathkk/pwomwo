@@ -1,8 +1,17 @@
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { resolveConfirm } from '../ui/dialog-store'
 import { usePendingConfirm } from '../hooks/useStore'
-import { useOverlay } from '../hooks/useOverlay'
-import { cls } from './primitives'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export function ConfirmHost() {
   const pending = usePendingConfirm()
@@ -27,49 +36,40 @@ function ConfirmDialog({
   checkbox?: string
 }) {
   const [checked, setChecked] = useState(false)
-  const cancel = useCallback(() => resolveConfirm({ confirmed: false, checked: false }), [])
-  const ref = useOverlay<HTMLDivElement>(cancel)
 
   return (
-    <div
-      className="fixed inset-0 z-90 flex items-center justify-center bg-scrim backdrop-blur-[2px] p-4"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) cancel()
+    <AlertDialog
+      open
+      onOpenChange={(open) => {
+        // Escape or an outside click; a second resolve after a button click is
+        // a no-op because the store has already cleared the pending question.
+        if (!open) resolveConfirm({ confirmed: false, checked: false })
       }}
     >
-      <div
-        ref={ref}
-        role="alertdialog"
-        aria-modal="true"
-        aria-label={title}
-        className="flex w-[min(440px,100%)] flex-col gap-3.5 rounded-3xl border border-white/9 bg-modal p-6 shadow-[0_30px_80px_rgb(0_0_0/0.6)]"
-      >
-        <h2 className="text-[16px] font-semibold">{title}</h2>
-        {body ? <p className="text-[13px] leading-relaxed text-ink-muted">{body}</p> : null}
+      {/* Without a body there is no description to point at. */}
+      <AlertDialogContent {...(body ? {} : { 'aria-describedby': undefined })}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          {body ? <AlertDialogDescription>{body}</AlertDialogDescription> : null}
+        </AlertDialogHeader>
         {checkbox ? (
-          <label className="flex items-center gap-2.5 py-1 coarse:py-2.5 text-[12.5px] text-ink-secondary">
-            <input
-              type="checkbox"
-              checked={checked}
-              onChange={(e) => setChecked(e.target.checked)}
-              className="h-4 w-4 coarse:h-5.5 coarse:w-5.5 accent-accent"
-            />
+          <label className="coarse:py-2.5 flex items-center gap-2.5 py-1 text-[12.5px] text-ink-secondary">
+            <Checkbox checked={checked} onCheckedChange={(v) => setChecked(v === true)} />
             {checkbox}
           </label>
         ) : null}
-        <div className="mt-1 flex justify-end gap-2.5">
-          <button type="button" className={cls.button} onClick={cancel}>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => resolveConfirm({ confirmed: false, checked: false })}>
             {cancelLabel ?? 'Cancel'}
-          </button>
-          <button
-            type="button"
-            className={danger ? cls.buttonDanger : cls.buttonPrimary}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            variant={danger ? 'destructive' : 'default'}
             onClick={() => resolveConfirm({ confirmed: true, checked })}
           >
             {confirmLabel ?? 'Confirm'}
-          </button>
-        </div>
-      </div>
-    </div>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

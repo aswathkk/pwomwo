@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { store } from '../store'
 import { useAppState } from '../hooks/useStore'
-import { useOverlay } from '../hooks/useOverlay'
 import { renderQr, scanQr, type Scanner } from '../sync/qr'
 import { peekRole } from '../sync/envelope'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { cls, Icons, Spinner } from './primitives'
 
 /**
@@ -46,7 +48,6 @@ const STEP_OF: Partial<Record<Step, string>> = {
 
 export function PairingDialog({ onClose }: { onClose: () => void }) {
   const state = useAppState()
-  const ref = useOverlay<HTMLDivElement>(onClose)
   const [step, setStep] = useState<Step>('choose')
   const [offerCode, setOfferCode] = useState('')
   const [answerCode, setAnswerCode] = useState('')
@@ -182,40 +183,34 @@ export function PairingDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-70 flex items-end justify-center bg-scrim backdrop-blur-[2px] sm:items-center sm:p-4"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
       }}
     >
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Pair a device"
-        className="scroll-region flex max-h-[92dvh] w-full flex-col gap-5 overflow-y-auto rounded-t-3xl border border-white/9 bg-sheet px-4.5 pt-6 pb-[calc(1.5rem+var(--safe-b))] shadow-[0_30px_80px_rgb(0_0_0/0.6)] sm:max-h-[min(720px,calc(100dvh-2rem))] sm:w-124 sm:rounded-3xl sm:px-8 sm:py-8"
+      <DialogContent
+        aria-describedby={undefined}
+        className="scroll-region z-70 gap-5 overflow-y-auto bg-sheet px-4.5 pt-6 pb-[calc(1.5rem+var(--safe-b))] sm:max-h-[min(720px,calc(100dvh-2rem))] sm:w-124 sm:px-8 sm:py-8"
       >
-        <header className="flex items-center gap-3">
+        <DialogHeader className="justify-start gap-3">
           {back ? (
-            <button
-              type="button"
-              className={cls.closeButton}
-              aria-label="Back"
-              onClick={() => goTo(back)}
-            >
+            <Button variant="soft" size="icon" aria-label="Back" onClick={() => goTo(back)}>
               {Icons.back}
-            </button>
+            </Button>
           ) : null}
           <div className="min-w-0 flex-1">
-            <h2 className="text-[19px] font-semibold">Pair a device</h2>
+            <DialogTitle>Pair a device</DialogTitle>
             {STEP_OF[step] ? (
               <p className="mt-1 text-[11.5px] text-ink-muted">{STEP_OF[step]}</p>
             ) : null}
           </div>
-          <button type="button" className={cls.closeButton} aria-label="Close" onClick={onClose}>
-            {Icons.close}
-          </button>
-        </header>
+          <DialogClose asChild>
+            <Button variant="soft" size="icon" aria-label="Close">
+              {Icons.close}
+            </Button>
+          </DialogClose>
+        </DialogHeader>
 
         {error ? (
           <p
@@ -258,9 +253,7 @@ export function PairingDialog({ onClose }: { onClose: () => void }) {
               />
               <Qr canvas={qrCanvas} />
               <CodeRow label="No camera on that device? Send it this code instead." code={offerCode} />
-              <button type="button" className={cls.buttonPrimary} onClick={() => goTo('scanAnswer')}>
-                Next, scan its code
-              </button>
+              <Button onClick={() => goTo('scanAnswer')}>Next, scan its code</Button>
             </>
           ) : null}
 
@@ -271,13 +264,13 @@ export function PairingDialog({ onClose }: { onClose: () => void }) {
                 hint={`${READ_A_CODE[cameraOff ? 'off' : 'on']} That is the last step.`}
               />
               <Scan {...scanProps} />
-              <button
-                type="button"
-                className={`${cls.button} self-start`}
+              <Button
+                variant="secondary"
+                className="self-start"
                 onClick={() => goTo('showOffer')}
               >
                 Show my code again
-              </button>
+              </Button>
             </>
           ) : null}
 
@@ -321,9 +314,9 @@ export function PairingDialog({ onClose }: { onClose: () => void }) {
               <p className={cls.hint}>
                 Both devices now share the timer and your history. Either one can start, pause and skip.
               </p>
-              <button type="button" className={`${cls.button} self-start`} onClick={restart}>
+              <Button variant="secondary" className="self-start" onClick={restart}>
                 Pair another device
-              </button>
+              </Button>
             </>
           ) : null}
 
@@ -338,24 +331,18 @@ export function PairingDialog({ onClose }: { onClose: () => void }) {
                 <Reason>On different networks, turn on the STUN lookup in Settings, under Sync.</Reason>
                 <Reason>Codes go stale. Start over to get a fresh one.</Reason>
               </ul>
-              <button type="button" className={cls.buttonPrimary} onClick={restart}>
-                Start over
-              </button>
+              <Button onClick={restart}>Start over</Button>
             </>
           ) : null}
         </div>
 
         <footer className="flex justify-end">
-          <button
-            type="button"
-            className={step === 'connected' ? cls.buttonPrimary : cls.button}
-            onClick={onClose}
-          >
+          <Button variant={step === 'connected' ? 'default' : 'secondary'} onClick={onClose}>
             {step === 'connected' ? 'Done' : 'Close'}
-          </button>
+          </Button>
         </footer>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -414,22 +401,22 @@ function CodeRow({ label, code }: { label: string; code: string }) {
     <div className="flex flex-col gap-2">
       <span className={cls.hint}>{label}</span>
       <div className="flex items-center gap-2">
-        <input
+        <Input
           readOnly
           value={code}
           aria-label="Pairing code"
-          className="h-9 coarse:h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/6 px-3 font-mono text-[11px] text-ink-muted"
+          className="flex-1 font-mono text-[11px] font-normal text-ink-muted"
         />
-        <button
-          type="button"
-          className={cls.outlinePill}
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => {
             void navigator.clipboard?.writeText(code)
             store.notify('Code copied')
           }}
         >
           Copy
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -473,22 +460,17 @@ function Scan({
           Send it over any channel you already have between the two devices.
         </p>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             id="paste-code"
             aria-describedby="paste-code-hint"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="FT1:…"
-            className="h-9 coarse:h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/6 px-3 font-mono text-[11px] text-ink-tertiary"
+            className="flex-1 font-mono text-[11px] font-normal text-ink-tertiary"
           />
-          <button
-            type="button"
-            className={cls.outlinePill}
-            disabled={!value.trim() || busy}
-            onClick={onSubmit}
-          >
+          <Button variant="outline" size="sm" disabled={!value.trim() || busy} onClick={onSubmit}>
             Use code
-          </button>
+          </Button>
         </div>
       </div>
     </>

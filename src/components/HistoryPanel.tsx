@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react'
 import { store } from '../store'
 import { useAppState } from '../hooks/useStore'
-import { useOverlay } from '../hooks/useOverlay'
 import { computeStats, type BucketMinutes, type Stats } from '../history/stats'
 import { buildExport, download, ImportError, parseImport, toCsv } from '../history/io'
 import { confirmDialog } from '../ui/dialog-store'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { cls, Section, Icons } from './primitives'
 
 const BUCKETS: { value: BucketMinutes; label: string }[] = [
@@ -24,7 +25,6 @@ export function HistoryPanel({
   onOpenSettings: (tab: string) => void
 }) {
   const state = useAppState()
-  const ref = useOverlay<HTMLElement>(onClose)
   const fileInput = useRef<HTMLInputElement>(null)
   const [bucket, setBucket] = useState<BucketMinutes>(30)
   const [heatMonths, setHeatMonths] = useState<9 | 12>(9)
@@ -107,26 +107,25 @@ export function HistoryPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50" role="presentation">
-      <div className="absolute inset-0 bg-scrim" onClick={onClose} />
-      <section
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-label="History and statistics"
-        className="scroll-region absolute inset-y-0 right-0 flex w-full flex-col gap-6 overflow-y-auto border-l border-white/9 bg-panel-glass px-4.5 pt-[calc(1.5rem+var(--safe-t))] pb-[calc(1.5rem+var(--safe-b))] backdrop-blur-3xl sm:w-160 sm:gap-7.5 sm:px-9.5 sm:pt-8"
+    <Sheet
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
+      <SheetContent
+        side="right"
+        aria-describedby={undefined}
+        className="scroll-region gap-6 overflow-y-auto px-4.5 pt-[calc(1.5rem+var(--safe-t))] pb-[calc(1.5rem+var(--safe-b))] sm:gap-7.5 sm:px-9.5 sm:pt-8"
       >
-        <header className="flex items-center justify-between">
-          <h2 className="text-[20px] font-semibold">History</h2>
-          <button
-            type="button"
-            className={cls.closeButton}
-            aria-label="Close history"
-            onClick={onClose}
-          >
-            {Icons.close}
-          </button>
-        </header>
+        <SheetHeader>
+          <SheetTitle>History</SheetTitle>
+          <SheetClose asChild>
+            <Button variant="soft" size="icon" aria-label="Close history">
+              {Icons.close}
+            </Button>
+          </SheetClose>
+        </SheetHeader>
 
         <StatBlocks stats={stats} empty={empty} />
 
@@ -307,8 +306,8 @@ export function HistoryPanel({
             </p>
           )}
         </div>
-      </section>
-    </div>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -436,14 +435,14 @@ function Action({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <button
-        type="button"
+      <Button
+        variant={danger ? 'destructive' : 'outline'}
+        size="sm"
         disabled={disabled}
         onClick={onClick}
-        className={danger ? cls.outlinePillDanger : cls.outlinePill}
       >
         {label}
-      </button>
+      </Button>
       <span className="text-[11px] leading-snug text-ink-muted">{hint}</span>
     </div>
   )

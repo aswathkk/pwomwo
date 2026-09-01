@@ -1,5 +1,6 @@
 import type { Settings, ThemeName, WeekStart } from './types'
 import { get, put } from './db'
+import { DEFAULT_BPM, isTimerSound, MAX_BPM, MIN_BPM, TIMER_SOUND_NONE } from './pwa/timer-sound'
 import { clamp } from './util'
 
 /** The defaults are also read in tests and workers, where there is no DOM. */
@@ -54,6 +55,9 @@ export function defaultSettings(): Settings {
     soundEnabled: true,
     soundName: 'bell',
     volume: 0.8,
+    timerSound: TIMER_SOUND_NONE,
+    timerSoundBpm: DEFAULT_BPM,
+    timerSoundVolume: 0.5,
     deviceName: guessDeviceName(),
     stunEnabled: true,
     idleHideControls: false,
@@ -71,6 +75,9 @@ export function validate(s: Partial<Settings>): Settings {
     longBreakMin: clamp(Math.round(merged.longBreakMin) || d.longBreakMin, 1, 180),
     longBreakEvery: clamp(Math.round(merged.longBreakEvery) || d.longBreakEvery, 2, 8),
     volume: clamp(merged.volume, 0, 1),
+    timerSound: isTimerSound(merged.timerSound) ? merged.timerSound : TIMER_SOUND_NONE,
+    timerSoundBpm: clamp(Math.round(merged.timerSoundBpm) || d.timerSoundBpm, MIN_BPM, MAX_BPM),
+    timerSoundVolume: clamp(merged.timerSoundVolume, 0, 1),
     weekStart: (merged.weekStart === 1 ? 1 : 0) as WeekStart,
     theme: (['scene', 'minimal'] as ThemeName[]).includes(merged.theme) ? merged.theme : 'scene',
     deviceName: String(merged.deviceName || d.deviceName).slice(0, 32),

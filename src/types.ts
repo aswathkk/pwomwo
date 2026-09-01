@@ -72,6 +72,8 @@ export interface Settings {
   timerSoundVolume: number
   deviceName: string
   stunEnabled: boolean
+  /** Zen view: while a timer runs, everything but the clock fades out and the
+      clock grows to fill the screen until the next pointer or key press. */
   idleHideControls: boolean
 }
 

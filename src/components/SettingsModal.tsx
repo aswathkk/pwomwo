@@ -273,11 +273,11 @@ function GeneralTab({ draft, set }: { draft: Settings; set: Setter }) {
       </Row>
 
       <Row
-        label="Hide the controls while a timer runs"
-        hint="They come back on any pointer or key press."
+        label="Zen view while a timer runs"
+        hint="Everything but the clock fades out, and the clock grows to fill the screen. Move the pointer, touch the screen or press a key to bring it back."
       >
         <Switch
-          aria-label="Hide the controls while a timer runs"
+          aria-label="Zen view while a timer runs"
           checked={draft.idleHideControls}
           onCheckedChange={(v) => set('idleHideControls', v)}
         />

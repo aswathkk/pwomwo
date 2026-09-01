@@ -15,12 +15,17 @@ import { ConfirmHost } from './ConfirmHost'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Icons } from './primitives'
+import { chromeFade, Icons } from './primitives'
 
 export type Overlay = 'none' | 'history' | 'settings' | 'pairing'
 
+/** How long the chrome waits, after the last input, before fading out again. */
 const FULLSCREEN_HIDE_MS = 3000
-const IDLE_HIDE_MS = 10_000
+const IDLE_HIDE_MS = 3500
+/** A held pointer keeps the controls up, but not forever: a `pointerup` can go
+    missing (capture, a cancelled touch, a tab switch mid-press) and without a
+    backstop the chrome would stay on screen for the rest of the session. */
+const HELD_HIDE_MS = 8000
 
 function toggleFullscreen(): void {
   if (document.fullscreenElement) void document.exitFullscreen()
@@ -39,28 +44,51 @@ export function App() {
     setOverlay('settings')
   }, [])
 
-  // Chrome fades in fullscreen, and optionally while a timer runs (PRD UI-6/13).
+  // Chrome fades in fullscreen, and in zen view while a timer runs (PRD UI-6/13).
   useEffect(() => {
     let timer: number | undefined
-    const schedule = () => {
+
+    // Fullscreen is read per event rather than captured: it changes without a
+    // React render, and a stale value here would strand the chrome on screen.
+    const armed = () =>
+      overlay === 'none' &&
+      (document.fullscreenElement !== null ||
+        (store.settings.idleHideControls && state.doc.status === 'running'))
+
+    const hideIn = (ms: number) => {
       window.clearTimeout(timer)
-      setChromeHidden(false)
-      const fullscreen = document.fullscreenElement !== null
-      const idleHide = store.settings.idleHideControls && state.doc.status === 'running'
-      if (overlay !== 'none' || (!fullscreen && !idleHide)) return
-      timer = window.setTimeout(
-        () => setChromeHidden(true),
-        fullscreen ? FULLSCREEN_HIDE_MS : IDLE_HIDE_MS,
-      )
+      if (armed()) timer = window.setTimeout(() => setChromeHidden(true), ms)
     }
-    schedule()
-    const events = ['pointermove', 'pointerdown', 'keydown', 'touchstart'] as const
-    for (const e of events) window.addEventListener(e, schedule, { passive: true })
-    document.addEventListener('fullscreenchange', schedule)
+    const reveal = (ms: number) => {
+      setChromeHidden(false)
+      hideIn(ms)
+    }
+
+    const idleDelay = () =>
+      document.fullscreenElement !== null ? FULLSCREEN_HIDE_MS : IDLE_HIDE_MS
+    const onMove = () => reveal(idleDelay())
+    // Held down: the controls stay put for as long as the finger or button is,
+    // up to the backstop. Letting go starts the same idle countdown a resting
+    // cursor gets, which is long enough to still aim at something.
+    const onPress = () => reveal(HELD_HIDE_MS)
+    const onRelease = () => reveal(idleDelay())
+
+    reveal(idleDelay())
+    const passive = { passive: true } as const
+    window.addEventListener('pointermove', onMove, passive)
+    window.addEventListener('keydown', onMove, passive)
+    window.addEventListener('pointerdown', onPress, passive)
+    window.addEventListener('pointerup', onRelease, passive)
+    window.addEventListener('pointercancel', onRelease, passive)
+    document.addEventListener('fullscreenchange', onMove)
     return () => {
       window.clearTimeout(timer)
-      for (const e of events) window.removeEventListener(e, schedule)
-      document.removeEventListener('fullscreenchange', schedule)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('keydown', onMove)
+      window.removeEventListener('pointerdown', onPress)
+      window.removeEventListener('pointerup', onRelease)
+      window.removeEventListener('pointercancel', onRelease)
+      document.removeEventListener('fullscreenchange', onMove)
     }
   }, [overlay, state.doc.status, state.settings.idleHideControls])
 
@@ -113,7 +141,7 @@ export function App() {
 
   const { doc, settings, remainingMs } = state
   const elapsed = doc.durationMs > 0 ? 1 - remainingMs / doc.durationMs : 0
-  const fade = chromeHidden ? 'pointer-events-none opacity-0' : 'opacity-100'
+  const fade = chromeFade(chromeHidden)
 
   return (
     <TooltipProvider>
@@ -127,7 +155,7 @@ export function App() {
           state.ready ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <div className={`transition-opacity duration-300 ${fade}`}>
+        <div className={fade}>
           <TopBar
             peers={state.peers}
             chromeHidden={chromeHidden}
@@ -141,11 +169,12 @@ export function App() {
           settings={settings}
           remainingMs={remainingMs}
           announcement={store.announcement}
+          chromeHidden={chromeHidden}
           onOpenSettings={() => openSettingsAt('timers')}
         />
 
         <div
-          className={`flex items-end justify-end px-4.5 pb-[calc(1rem+var(--safe-b))] transition-opacity duration-300 sm:px-8 sm:pb-[calc(1.375rem+var(--safe-b))] ${fade}`}
+          className={`flex items-end justify-end pr-[calc(1.125rem+var(--safe-r))] pb-[calc(1rem+var(--safe-b))] pl-[calc(1.125rem+var(--safe-l))] sm:pr-[calc(2rem+var(--safe-r))] sm:pb-[calc(1.375rem+var(--safe-b))] sm:pl-[calc(2rem+var(--safe-l))] landscape-short:pb-[calc(0.625rem+var(--safe-b))] ${fade}`}
         >
           <Button
             variant="ghost"
@@ -159,7 +188,7 @@ export function App() {
           </Button>
         </div>
 
-        <div aria-hidden className="fixed inset-x-0 bottom-0 h-[3px] bg-white/10">
+        <div aria-hidden className={`fixed inset-x-0 bottom-0 h-[3px] bg-white/10 ${fade}`}>
           <div
             className="h-full bg-accent shadow-[0_0_10px_rgb(255_160_110/0.8)] transition-[width] duration-400 ease-linear"
             style={{ width: `${Math.max(0, Math.min(1, elapsed)) * 100}%` }}

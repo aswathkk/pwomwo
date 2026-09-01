@@ -28,6 +28,17 @@ export const cls = {
   card: 'rounded-xl border border-white/8 bg-white/4 p-4',
 }
 
+/**
+ * Everything that leaves the screen in zen view dissolves on the same curve,
+ * and stops taking taps the moment it starts to go: an invisible control that
+ * still reacts is worse than one that is simply gone.
+ */
+export function chromeFade(hidden: boolean): string {
+  return `transition-opacity duration-500 ease-out ${
+    hidden ? 'pointer-events-none opacity-0' : 'opacity-100'
+  }`
+}
+
 export function Dot({ tone }: { tone: 'good' | 'warn' | 'off' }) {
   const color =
     tone === 'good'

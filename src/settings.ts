@@ -60,7 +60,7 @@ export function defaultSettings(): Settings {
     timerSoundVolume: 0.5,
     deviceName: guessDeviceName(),
     stunEnabled: true,
-    idleHideControls: false,
+    idleHideControls: true,
   }
 }
 

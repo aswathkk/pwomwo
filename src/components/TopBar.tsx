@@ -51,7 +51,7 @@ export function TopBar({
         : 'not paired'
 
   return (
-    <header className="flex items-center justify-between gap-3 px-4.5 pt-[calc(1.125rem+var(--safe-t))] sm:px-8 sm:pt-6.5">
+    <header className="flex items-center justify-between gap-3 pt-[calc(1.125rem+var(--safe-t))] pr-[calc(1.125rem+var(--safe-r))] pl-[calc(1.125rem+var(--safe-l))] sm:pt-6.5 sm:pr-[calc(2rem+var(--safe-r))] sm:pl-[calc(2rem+var(--safe-l))] landscape-short:pt-[calc(0.75rem+var(--safe-t))]">
       <div>
         {/* The only h1 on the page: without it the panels' h2s started an
             outline with nothing above them. */}

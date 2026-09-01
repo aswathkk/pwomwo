@@ -96,7 +96,7 @@ export function TopBar({
             </div>
             {peers.length === 0 ? (
               <p className="px-2.5 pb-2.5 text-[11.5px] leading-relaxed text-ink-muted">
-                Nothing paired yet. Pair a device to mirror the timer and merge history.
+                Nothing paired yet. Pair a device to share the timer and your history.
               </p>
             ) : (
               peers.map((p) => (
@@ -138,7 +138,7 @@ export function TopBar({
               }}
             >
               {Icons.add}
-              Pair another device
+              {peers.length === 0 ? 'Pair a device' : 'Pair another device'}
             </button>
           </div>
         ) : null}

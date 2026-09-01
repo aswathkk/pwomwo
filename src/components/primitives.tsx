@@ -2,8 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { createPortal } from 'react-dom'
 import {
   ArrowCounterClockwiseIcon,
+  ArrowLeftIcon,
   ArrowsOutIcon,
   ChartBarIcon,
+  CheckCircleIcon,
   PlusIcon,
   SkipForwardIcon,
   SlidersHorizontalIcon,
@@ -285,6 +287,8 @@ export const Icons = {
   skip: <SkipForwardIcon size={17} weight={ICON_WEIGHT} aria-hidden />,
   close: <XIcon size={15} weight={ICON_WEIGHT} aria-hidden />,
   add: <PlusIcon size={13} weight={ICON_WEIGHT} aria-hidden />,
+  back: <ArrowLeftIcon size={15} weight={ICON_WEIGHT} aria-hidden />,
+  paired: <CheckCircleIcon size={22} weight={ICON_WEIGHT} aria-hidden />,
 }
 
 export function Spinner() {

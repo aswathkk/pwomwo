@@ -39,7 +39,7 @@ async function nativeDetector(): Promise<BarcodeDetector | null> {
 export async function scanQr(
   video: HTMLVideoElement,
   onResult: (text: string) => void,
-  onError: (message: string) => void,
+  onUnavailable: () => void,
 ): Promise<Scanner> {
   let stopped = false
   let stream: MediaStream | null = null
@@ -49,7 +49,9 @@ export async function scanQr(
       audio: false,
     })
   } catch {
-    onError('No camera available. Paste the code instead.')
+    // Missing hardware and a refused permission are the same fact to the user;
+    // the step's own heading says what to do instead.
+    onUnavailable()
     return { stop: () => undefined }
   }
   video.srcObject = stream

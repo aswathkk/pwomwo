@@ -41,8 +41,8 @@ export async function decodePairing(code: string): Promise<PairingPayload> {
   if (!trimmed.startsWith(PREFIX)) throw new Error('That code is not a pwomwo pairing code.')
   const body = await inflate(base45Decode(trimmed.slice(PREFIX.length)))
   const [role, deviceId, name, publicKey, fingerprint, compact] = body.split(SEP)
-  if (!role || !deviceId || !compact) throw new Error('That pairing code is incomplete.')
-  if (role !== 'offer' && role !== 'answer') throw new Error('Unknown pairing code type.')
+  if (!role || !deviceId || !compact) throw new Error('That code is incomplete. Scan it again.')
+  if (role !== 'offer' && role !== 'answer') throw new Error('That code is not one pwomwo can use.')
   return {
     role,
     deviceId,

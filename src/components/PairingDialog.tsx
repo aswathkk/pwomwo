@@ -4,91 +4,182 @@ import { useAppState } from '../hooks/useStore'
 import { useOverlay } from '../hooks/useOverlay'
 import { renderQr, scanQr, type Scanner } from '../sync/qr'
 import { peekRole } from '../sync/envelope'
-import { cls, Dot, Spinner, Icons } from './primitives'
-
-type Mode = 'choose' | 'offering' | 'scanning' | 'answering'
+import { cls, Icons, Spinner } from './primitives'
 
 /**
- * The whole handshake, in the order the user physically performs it: this
- * device shows a code, the other scans it and shows an answer, this device
- * scans that back. There is no server to rendezvous through, so possession of
- * the QR is the authorisation (PRD §4.5.2).
+ * One handshake with two halves, where the only thing the user has to get
+ * right is which screen to be looking at. So every heading names the device it
+ * is talking about, in the same two words throughout: *this device* and *your
+ * other device*. The protocol's own vocabulary — offer, answer, handshake,
+ * negotiation — never reaches the surface; there is only ever "a code".
+ *
+ * Showing both halves on both devices at once, as this used to, is how a
+ * device ended up being handed a code for a pairing it had never started, and
+ * how opening the camera silently took away the code the other device was
+ * still trying to scan. Possession of the QR is the authorisation, so the code
+ * on screen has to survive every step that follows it (PRD §4.5.2).
  */
+type Step =
+  | 'choose'
+  | 'showOffer'
+  | 'scanAnswer'
+  | 'scanOffer'
+  | 'showAnswer'
+  | 'connecting'
+  | 'connected'
+  | 'failed'
+
+const SCANNING: ReadonlySet<Step> = new Set<Step>(['scanOffer', 'scanAnswer'])
+/** Both codes are in by now, so a link still not up is a genuine failure. */
+const PAIRING_DEADLINE_MS = 25_000
+/** Whichever way a code gets in, the sentence has to match what is on screen. */
+const READ_A_CODE = {
+  on: 'Point this camera at it.',
+  off: 'This device has no camera, so paste the code instead.',
+} as const
+const STEP_OF: Partial<Record<Step, string>> = {
+  showOffer: 'Step 1 of 2',
+  scanAnswer: 'Step 2 of 2',
+  scanOffer: 'Step 1 of 2',
+  showAnswer: 'Step 2 of 2',
+}
+
 export function PairingDialog({ onClose }: { onClose: () => void }) {
   const state = useAppState()
   const ref = useOverlay<HTMLDivElement>(onClose)
-  const [mode, setMode] = useState<Mode>('choose')
-  const [code, setCode] = useState('')
+  const [step, setStep] = useState<Step>('choose')
+  const [offerCode, setOfferCode] = useState('')
+  const [answerCode, setAnswerCode] = useState('')
   const [pasted, setPasted] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /** Set when the camera is refused or missing, so the step leads with paste. */
+  const [cameraOff, setCameraOff] = useState(false)
 
   const qrCanvas = useRef<HTMLCanvasElement>(null)
   const video = useRef<HTMLVideoElement>(null)
   const scanner = useRef<Scanner | null>(null)
+  /** Bumped whenever an attempt is abandoned, so a stale wait cannot land. */
+  const attempt = useRef(0)
 
-  const connected = state.peers.some((p) => p.state === 'connected')
+  const showing = step === 'showOffer' ? offerCode : step === 'showAnswer' ? answerCode : ''
+  const partner = [...state.peers].reverse().find((p) => p.state === 'connected')
 
-  useEffect(() => () => scanner.current?.stop(), [])
+  /**
+   * `deadline` is null while the other device has yet to be shown anything: the
+   * step is gated on a person walking between two screens, and no clock should
+   * run against that. Once both codes are in, a stalled connection is a real
+   * failure and worth calling after a few seconds.
+   */
+  const watch = useCallback(async (deadline: number | null) => {
+    const mine = attempt.current
+    const ok = (await store.sync?.waitForPairing(deadline)) ?? false
+    if (attempt.current !== mine) return
+    setStep(ok ? 'connected' : 'failed')
+  }, [])
 
-  useEffect(() => {
-    if (!code || !qrCanvas.current) return
-    void renderQr(qrCanvas.current, code, 260)
-  }, [code, mode])
+  /** One place decides what a code means, so pasting and scanning agree. */
+  const consume = useCallback(
+    async (raw: string) => {
+      setBusy(true)
+      setError(null)
+      try {
+        const sync = store.sync
+        if (!sync) throw new Error('Sync is still starting up. Try again in a moment.')
+        // The code itself says which half of the handshake it carries; reading
+        // it from the step the user happens to be on gets it wrong the moment
+        // they paste something into the other one.
+        if ((await peekRole(raw)) === 'offer') {
+          setAnswerCode(await sync.acceptOfferCode(raw))
+          setStep('showAnswer')
+          setPasted('')
+          void watch(null)
+        } else {
+          await sync.acceptAnswerCode(raw)
+          setStep('connecting')
+          setPasted('')
+          void watch(PAIRING_DEADLINE_MS)
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'That code could not be read.')
+      } finally {
+        setBusy(false)
+      }
+    },
+    [watch],
+  )
 
   const startOffer = useCallback(async () => {
     setBusy(true)
     setError(null)
     try {
-      setMode('offering')
-      setCode(await (store.sync?.createOffer() ?? Promise.reject(new Error('not ready'))))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not start pairing.')
-      setMode('choose')
-    } finally {
-      setBusy(false)
-    }
-  }, [])
-
-  const consume = useCallback(async (raw: string) => {
-    setBusy(true)
-    setError(null)
-    try {
       const sync = store.sync
-      if (!sync) throw new Error('not ready')
-      // The code itself says which half of the handshake it is; guessing from
-      // the UI mode gets it wrong the moment someone pastes instead of scans.
-      if ((await peekRole(raw)) === 'offer') {
-        const answer = await sync.acceptOfferCode(raw)
-        scanner.current?.stop()
-        setCode(answer)
-        setMode('answering')
-      } else {
-        await sync.acceptAnswerCode(raw)
-        scanner.current?.stop()
-        store.notify('Pairing completed', 'good')
-      }
+      if (!sync) throw new Error('Sync is still starting up. Try again in a moment.')
+      attempt.current++
+      setOfferCode(await sync.createOffer())
+      setStep('showOffer')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'That code could not be read.')
+      setError(err instanceof Error ? err.message : 'Pairing could not be started.')
     } finally {
       setBusy(false)
-      setPasted('')
     }
   }, [])
 
-  const startScan = useCallback(async () => {
-    setMode('scanning')
+  const goTo = useCallback((next: Step) => {
     setError(null)
-    // The camera is only requested here, because the user tapped Scan.
-    queueMicrotask(async () => {
-      if (!video.current) return
-      scanner.current = await scanQr(
-        video.current,
+    setStep(next)
+  }, [])
+
+  const restart = useCallback(() => {
+    attempt.current++
+    setStep('choose')
+    setError(null)
+    setPasted('')
+    setOfferCode('')
+    setAnswerCode('')
+    setCameraOff(false)
+  }, [])
+
+  // The camera is tied to the step, so it is requested only when the user is
+  // on a step that scans, and released the instant they leave it.
+  useEffect(() => {
+    if (!SCANNING.has(step)) return
+    let cancelled = false
+    setCameraOff(false)
+    void (async () => {
+      const el = video.current
+      if (!el) return
+      const started = await scanQr(
+        el,
         (text) => void consume(text),
-        (message) => setError(message),
+        // A missing camera is not an error: it is the case the paste field is
+        // there for, so it takes the viewfinder away and rewords the step.
+        () => setCameraOff(true),
       )
-    })
-  }, [consume])
+      if (cancelled) started.stop()
+      else scanner.current = started
+    })()
+    return () => {
+      cancelled = true
+      scanner.current?.stop()
+      scanner.current = null
+    }
+  }, [step, consume])
+
+  useEffect(() => {
+    if (!showing || !qrCanvas.current) return
+    void renderQr(qrCanvas.current, showing, 248)
+  }, [showing])
+
+  const back = step === 'scanAnswer' ? 'showOffer' : step === 'scanOffer' ? 'choose' : null
+  const scanProps = {
+    video,
+    cameraOff,
+    value: pasted,
+    busy,
+    onChange: setPasted,
+    onSubmit: () => void consume(pasted.trim()),
+  }
 
   return (
     <div
@@ -102,143 +193,165 @@ export function PairingDialog({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label="Pair a device"
-        className="scroll-region flex max-h-[92dvh] w-full flex-col gap-6 overflow-y-auto rounded-t-3xl border border-white/9 bg-sheet px-4.5 pt-6 pb-[calc(1.5rem+var(--safe-b))] shadow-[0_30px_80px_rgb(0_0_0/0.6)] sm:max-h-[min(680px,calc(100dvh-2rem))] sm:w-260 sm:rounded-3xl sm:px-11 sm:py-9"
+        className="scroll-region flex max-h-[92dvh] w-full flex-col gap-5 overflow-y-auto rounded-t-3xl border border-white/9 bg-sheet px-4.5 pt-6 pb-[calc(1.5rem+var(--safe-b))] shadow-[0_30px_80px_rgb(0_0_0/0.6)] sm:max-h-[min(720px,calc(100dvh-2rem))] sm:w-124 sm:rounded-3xl sm:px-8 sm:py-8"
       >
-        <header className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-[19px] font-semibold">Pair a device</h2>
-          <p className="text-[12px] text-ink-muted">
-            No account, no server, end to end encrypted. Works on the same Wi-Fi with the internet off.
-          </p>
-          <button
-            type="button"
-            className={`${cls.closeButton} sm:hidden`}
-            aria-label="Close pairing"
-            onClick={onClose}
-          >
+        <header className="flex items-center gap-3">
+          {back ? (
+            <button
+              type="button"
+              className={cls.closeButton}
+              aria-label="Back"
+              onClick={() => goTo(back)}
+            >
+              {Icons.back}
+            </button>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[19px] font-semibold">Pair a device</h2>
+            {STEP_OF[step] ? (
+              <p className="mt-1 text-[11.5px] text-ink-muted">{STEP_OF[step]}</p>
+            ) : null}
+          </div>
+          <button type="button" className={cls.closeButton} aria-label="Close" onClick={onClose}>
             {Icons.close}
           </button>
         </header>
 
         {error ? (
-          <p role="alert" className="rounded-lg border border-bad/40 bg-bad/8 px-3.5 py-2.5 text-[12.5px] text-bad">
+          <p
+            role="alert"
+            className="rounded-lg border border-bad/40 bg-bad/8 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-bad"
+          >
             {error}
           </p>
         ) : null}
 
-        <div className="flex flex-col gap-6 lg:flex-row">
-          <Column step="STEP 1, ON THIS DEVICE" lead="Show a code for your other device to scan">
-            {mode === 'offering' || mode === 'answering' ? (
-              <>
-                <div className="self-center rounded-xl bg-white p-3">
-                  <canvas ref={qrCanvas} width={260} height={260} className="block rounded" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={code}
-                    aria-label="Pairing code"
-                    className="h-9 coarse:h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/6 px-3 font-mono text-[11px] text-ink-muted"
-                  />
-                  <button
-                    type="button"
-                    className={cls.outlinePill}
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(code)
-                      store.notify('Code copied')
-                    }}
-                  >
-                    Copy code
-                  </button>
-                </div>
-                {mode === 'offering' ? (
-                  <p className="flex items-center gap-2.5 text-[12px] text-ink-muted">
-                    <Spinner /> waiting for your other device…
-                  </p>
-                ) : (
-                  <p className="text-[12px] text-ink-muted">
-                    Show this answer to the device that made the offer.
-                  </p>
-                )}
-              </>
-            ) : (
-              <button
-                type="button"
-                className={cls.outlinePill}
+        {/* Each step replaces the last, so the new heading has to be announced
+            rather than left for a screen reader to stumble back into. */}
+        <div className="flex flex-col gap-5" aria-live="polite">
+          {step === 'choose' ? (
+            <>
+              <Lead
+                title="Open pwomwo on both devices"
+                hint="One device shows a code, the other scans it. Nothing is sent to a server, and it works on the same Wi-Fi with the internet off."
+              />
+              <Choice
+                title="Show a code"
+                hint="Start here. Your other device will scan this screen."
                 disabled={busy}
                 onClick={() => void startOffer()}
-              >
-                Show my code
-              </button>
-            )}
-          </Column>
-
-          <Column step="STEP 2, ON THE OTHER DEVICE" lead="Scan the code, then show its answer back here">
-            {mode === 'scanning' ? (
-              <div className="relative flex h-40 items-center justify-center overflow-hidden rounded-xl border-[1.5px] border-dashed border-white/20 bg-black font-mono text-[11px] text-ink-muted">
-                <video ref={video} muted playsInline className="h-full w-full object-cover" />
-                <Corner className="top-2.5 left-2.5 border-t-2 border-l-2" />
-                <Corner className="top-2.5 right-2.5 border-t-2 border-r-2" />
-                <Corner className="bottom-2.5 left-2.5 border-b-2 border-l-2" />
-                <Corner className="right-2.5 bottom-2.5 border-r-2 border-b-2" />
-              </div>
-            ) : (
-              <button type="button" className={cls.outlinePill} onClick={() => void startScan()}>
-                Scan a code
-              </button>
-            )}
-
-            <label className="text-[12px] text-ink-muted" htmlFor="paste-code">
-              No camera? Paste the code instead. Any channel you already have works.
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="paste-code"
-                value={pasted}
-                onChange={(e) => setPasted(e.target.value)}
-                placeholder="FT1:…"
-                className="h-9 coarse:h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/6 px-3 font-mono text-[11px] text-ink-tertiary"
               />
+              <Choice
+                title="Scan a code"
+                hint="Your other device is already showing one."
+                disabled={busy}
+                onClick={() => goTo('scanOffer')}
+              />
+            </>
+          ) : null}
+
+          {step === 'showOffer' ? (
+            <>
+              <Lead
+                title="Scan this screen with your other device"
+                hint="Open pwomwo there, start pairing, and choose Scan a code. Your other device shows a code back once it has scanned this one."
+              />
+              <Qr canvas={qrCanvas} />
+              <CodeRow label="No camera on that device? Send it this code instead." code={offerCode} />
+              <button type="button" className={cls.buttonPrimary} onClick={() => goTo('scanAnswer')}>
+                Next, scan its code
+              </button>
+            </>
+          ) : null}
+
+          {step === 'scanAnswer' ? (
+            <>
+              <Lead
+                title={`${cameraOff ? 'Enter' : 'Scan'} the code your other device shows back`}
+                hint={`${READ_A_CODE[cameraOff ? 'off' : 'on']} That is the last step.`}
+              />
+              <Scan {...scanProps} />
               <button
                 type="button"
-                className={cls.outlinePill}
-                disabled={!pasted.trim() || busy}
-                onClick={() => void consume(pasted.trim())}
+                className={`${cls.button} self-start`}
+                onClick={() => goTo('showOffer')}
               >
-                Use code
+                Show my code again
               </button>
-            </div>
-          </Column>
+            </>
+          ) : null}
 
-          <Column step={connected ? 'STEP 3, CONNECTED' : 'STEP 3, ONCE CONNECTED'} done={connected} lead="">
-            <div className="flex items-center gap-2.5">
-              <Dot tone={connected ? 'good' : 'off'} />
-              <span className="text-[15px] font-semibold">
-                {connected
-                  ? `Connected to ${state.peers.find((p) => p.state === 'connected')?.name ?? 'device'}`
-                  : 'Not connected yet'}
-              </span>
-            </div>
-            <p className="text-[12px] leading-relaxed text-ink-muted">
-              Timer state mirrors within a second; history merges with no duplicates. Either device can
-              control the timer.
-            </p>
-            <div className="flex flex-col gap-2 text-[11.5px] text-ink-muted">
-              <span className="flex items-center gap-2">
-                <Dot tone="off" /> grey, not paired
-              </span>
-              <span className="flex items-center gap-2">
-                <Dot tone="warn" /> amber, connecting
-              </span>
-              <span className="flex items-center gap-2">
-                <Dot tone="good" /> green, connected
-              </span>
-            </div>
-          </Column>
+          {step === 'scanOffer' ? (
+            <>
+              <Lead
+                title={`${cameraOff ? 'Enter' : 'Scan'} the code on your other device`}
+                hint={`${READ_A_CODE[cameraOff ? 'off' : 'on']} If that device is not showing a code yet, choose Show a code there first.`}
+              />
+              <Scan {...scanProps} />
+            </>
+          ) : null}
+
+          {step === 'showAnswer' ? (
+            <>
+              <Lead
+                title="Take this screen back to your other device"
+                hint="Scan it there to finish. That device is waiting for this code."
+              />
+              <Qr canvas={qrCanvas} />
+              <CodeRow label="No camera on that device? Send it this code instead." code={answerCode} />
+              <Status>Waiting for your other device</Status>
+            </>
+          ) : null}
+
+          {step === 'connecting' ? (
+            <>
+              <Lead title="Connecting" hint="Both codes are in. This takes a few seconds." />
+              <Status>Linking the two devices</Status>
+            </>
+          ) : null}
+
+          {step === 'connected' ? (
+            <>
+              <div className="flex items-center gap-2.5 text-good">
+                {Icons.paired}
+                <h3 className="text-[17px] font-semibold">
+                  Paired with {partner?.name ?? 'your other device'}
+                </h3>
+              </div>
+              <p className={cls.hint}>
+                Both devices now share the timer and your history. Either one can start, pause and skip.
+              </p>
+              <button type="button" className={`${cls.button} self-start`} onClick={restart}>
+                Pair another device
+              </button>
+            </>
+          ) : null}
+
+          {step === 'failed' ? (
+            <>
+              <Lead
+                title="No connection"
+                hint="Both codes went through, but the two devices could not reach each other. There is no relay server to fall back on, so it is usually one of these."
+              />
+              <ul className="flex flex-col gap-2 text-[12.5px] leading-relaxed text-ink-muted">
+                <Reason>Put both devices on the same Wi-Fi. That always works.</Reason>
+                <Reason>On different networks, turn on the STUN lookup in Settings, under Sync.</Reason>
+                <Reason>Codes go stale. Start over to get a fresh one.</Reason>
+              </ul>
+              <button type="button" className={cls.buttonPrimary} onClick={restart}>
+                Start over
+              </button>
+            </>
+          ) : null}
         </div>
 
         <footer className="flex justify-end">
-          <button type="button" className={cls.button} onClick={onClose}>
-            Done
+          <button
+            type="button"
+            className={step === 'connected' ? cls.buttonPrimary : cls.button}
+            onClick={onClose}
+          >
+            {step === 'connected' ? 'Done' : 'Close'}
           </button>
         </footer>
       </div>
@@ -246,25 +359,148 @@ export function PairingDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
-function Column({
-  step,
-  lead,
-  done,
-  children,
+function Lead({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <h3 className="text-[15px] leading-snug font-semibold text-balance">{title}</h3>
+      <p className={cls.hint}>{hint}</p>
+    </div>
+  )
+}
+
+function Choice({
+  title,
+  hint,
+  disabled,
+  onClick,
 }: {
-  step: string
-  lead: string
-  done?: boolean
-  children: React.ReactNode
+  title: string
+  hint: string
+  disabled?: boolean
+  onClick: () => void
 }) {
   return (
-    <section className="flex flex-1 flex-col gap-3.5 rounded-xl border border-white/8 bg-white/4 p-5.5">
-      <h3 className={`text-[12px] font-semibold tracking-[0.1em] ${done ? 'text-good' : 'text-accent'}`}>
-        {step}
-      </h3>
-      {lead ? <p className="text-[13px] text-ink-tertiary">{lead}</p> : null}
-      {children}
-    </section>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-xl border border-white/10 bg-white/4 p-4 text-left transition hover:border-accent/50 hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <span className="block text-[14px] font-semibold">{title}</span>
+      <span className={`mt-1 block ${cls.hint}`}>{hint}</span>
+    </button>
+  )
+}
+
+/** The one line that says the app is still working and who has to act next. */
+function Status({ children }: { children: React.ReactNode }) {
+  return (
+    <p role="status" className="flex items-center gap-2.5 text-[12.5px] text-ink-muted">
+      <Spinner /> {children}…
+    </p>
+  )
+}
+
+function Qr({ canvas }: { canvas: React.RefObject<HTMLCanvasElement | null> }) {
+  return (
+    <div className="self-center rounded-xl bg-white p-3">
+      <canvas ref={canvas} width={248} height={248} className="block rounded" />
+    </div>
+  )
+}
+
+function CodeRow({ label, code }: { label: string; code: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className={cls.hint}>{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          readOnly
+          value={code}
+          aria-label="Pairing code"
+          className="h-9 coarse:h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/6 px-3 font-mono text-[11px] text-ink-muted"
+        />
+        <button
+          type="button"
+          className={cls.outlinePill}
+          onClick={() => {
+            void navigator.clipboard?.writeText(code)
+            store.notify('Code copied')
+          }}
+        >
+          Copy
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Camera first, with the paste field under it as the stated fallback. When
+ * there is no camera the viewfinder goes away rather than sitting there as an
+ * empty black box, and paste stops introducing itself as second best.
+ */
+function Scan({
+  video,
+  cameraOff,
+  value,
+  busy,
+  onChange,
+  onSubmit,
+}: {
+  video: React.RefObject<HTMLVideoElement | null>
+  cameraOff: boolean
+  value: string
+  busy: boolean
+  onChange: (next: string) => void
+  onSubmit: () => void
+}) {
+  return (
+    <>
+      <div className={cameraOff ? 'hidden' : 'relative h-52 overflow-hidden rounded-xl bg-black'}>
+        <video ref={video} muted playsInline className="h-full w-full object-cover" />
+        <Corner className="top-2.5 left-2.5 border-t-2 border-l-2" />
+        <Corner className="top-2.5 right-2.5 border-t-2 border-r-2" />
+        <Corner className="bottom-2.5 left-2.5 border-b-2 border-l-2" />
+        <Corner className="right-2.5 bottom-2.5 border-r-2 border-b-2" />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-[13px] font-medium" htmlFor="paste-code">
+          {cameraOff ? 'Paste the code' : 'Or paste the code'}
+        </label>
+        <p id="paste-code-hint" className={cls.hint}>
+          Send it over any channel you already have between the two devices.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            id="paste-code"
+            aria-describedby="paste-code-hint"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="FT1:…"
+            className="h-9 coarse:h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/6 px-3 font-mono text-[11px] text-ink-tertiary"
+          />
+          <button
+            type="button"
+            className={cls.outlinePill}
+            disabled={!value.trim() || busy}
+            onClick={onSubmit}
+          >
+            Use code
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function Reason({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex gap-2.5">
+      <span aria-hidden className="mt-1.75 h-1 w-1 shrink-0 rounded-full bg-white/35" />
+      <span>{children}</span>
+    </li>
   )
 }
 

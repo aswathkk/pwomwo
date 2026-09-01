@@ -78,7 +78,7 @@ export function serializeCompact(c: CompactSdp): string {
 
 export function deserializeCompact(s: string): CompactSdp {
   const parts = s.split('\n')
-  if (parts.length < 6) throw new Error('malformed pairing code')
+  if (parts.length < 6) throw new Error('That code is incomplete. Scan it again.')
   return {
     ufrag: parts[0]!,
     pwd: parts[1]!,

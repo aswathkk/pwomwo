@@ -7,6 +7,8 @@ import { put } from '../db'
 import { APP_VERSION } from '../version'
 
 const MAX_PEERS = 3
+/** How long a handshake may sit unconnected before the UI calls it a failure. */
+const PAIRING_TIMEOUT_MS = 25_000
 const HEARTBEAT_MS = 5000
 const PING_MS = 30_000
 const RECORDS_PER_MESSAGE = 40
@@ -32,13 +34,28 @@ interface Envelope {
   [key: string]: unknown
 }
 
+interface PairingWaiter {
+  link: PeerLink
+  settle: (connected: boolean) => void
+}
+
 /**
  * Owns the mesh. Every device is a full replica: the timer converges by
  * last-writer-wins on a Lamport clock, history by union of a grow-only set.
  */
 export class SyncManager {
   private readonly links = new Set<PeerLink>()
+  /** The half-finished handshake, and which half of it is still outstanding. */
   private pending: PeerLink | null = null
+  private pendingRole: 'offer' | 'answer' | null = null
+  /**
+   * The most recent attempt, kept after `pending` clears so the dialog can
+   * still await its outcome, and so an attempt that died can say so rather
+   * than looking like a pairing that was never started.
+   */
+  private lastAttempt: PeerLink | null = null
+  private offeredOnce = false
+  private readonly waiters = new Set<PairingWaiter>()
   private heartbeat: number | null = null
   private pinger: number | null = null
   private skewWarned = false
@@ -50,34 +67,53 @@ export class SyncManager {
   }
 
   statuses(): PeerStatus[] {
-    return [...this.links].map((l) => ({
-      deviceId: l.peerId,
-      name: l.peerName,
-      state:
-        l.linkState === 'connected' ? 'connected' : l.linkState === 'connecting' ? 'connecting' : 'offline',
-      lastSyncAt: l.lastSyncAt,
-    }))
+    // A handshake in flight is not a peer yet. Listing it would put a nameless
+    // device, with a Forget button, in the toolbar half way through pairing.
+    return [...this.links]
+      .filter((l) => l.verified || l.linkState === 'connected')
+      .map((l) => ({
+        deviceId: l.peerId,
+        name: l.peerName,
+        state:
+          l.linkState === 'connected'
+            ? 'connected'
+            : l.linkState === 'connecting'
+              ? 'connecting'
+              : 'offline',
+        lastSyncAt: l.lastSyncAt,
+      }))
   }
 
   /** ── Pairing ────────────────────────────────────────────────────────── */
 
+  /** Device A: begin a pairing and produce the code the other device scans. */
   async createOffer(): Promise<string> {
-    if (this.links.size >= MAX_PEERS) {
-      throw new Error(`You can pair up to ${MAX_PEERS} devices. Forget one first.`)
-    }
-    this.pending?.close()
+    this.assertRoom()
+    this.cancelPending()
     const link = this.newLink()
     this.pending = link
+    this.pendingRole = 'offer'
+    this.lastAttempt = link
+    this.offeredOnce = true
     return link.makeOffer(this.host.identity, publicKeyHex(this.host.identity))
   }
 
   /** Device B: consume A's offer and produce the answer code to show back. */
   async acceptOfferCode(code: string): Promise<string> {
     const payload = await decodePairing(code)
-    if (payload.role !== 'offer') throw new Error('That is an answer code. Scan the offer first.')
+    if (payload.role !== 'offer') {
+      throw new Error('That is the wrong half of the pair. Scan the code your other device is showing.')
+    }
+    this.rejectOwnCode(payload)
+    this.assertRoom()
     await this.verifyCodeIntegrity(payload)
+    // Replacing a half-finished attempt without closing it left a dead
+    // connection in the set for the peer limit to trip over later.
+    this.cancelPending()
     const link = this.newLink()
     this.pending = link
+    this.pendingRole = 'answer'
+    this.lastAttempt = link
     this.remember(link, payload)
     return link.acceptOffer(payload, this.host.identity, publicKeyHex(this.host.identity))
   }
@@ -85,12 +121,77 @@ export class SyncManager {
   /** Device A: consume B's answer and complete the connection. */
   async acceptAnswerCode(code: string): Promise<void> {
     const payload = await decodePairing(code)
-    if (payload.role !== 'answer') throw new Error('That is an offer code. This device has already made an offer.')
+    if (payload.role !== 'answer') {
+      throw new Error(
+        'Both devices are showing a code, so neither is scanning. Choose Scan a code on one of them.',
+      )
+    }
+    this.rejectOwnCode(payload)
     const link = this.pending
-    if (!link) throw new Error('Start a pairing on this device first.')
+    if (!link || this.pendingRole !== 'offer' || link.linkState === 'closed') {
+      // The old wording blamed the user for not starting a pairing, which is
+      // wrong in the common case: they did, and it timed out or was replaced.
+      throw new Error(
+        this.offeredOnce
+          ? 'That code has expired. Start over to get a fresh one.'
+          : 'This device has not shown a code yet. Choose Show a code first.',
+      )
+    }
     await this.verifyCodeIntegrity(payload)
     this.remember(link, payload)
     await link.acceptAnswer(payload)
+  }
+
+  /**
+   * Resolves once the handshake in flight connects, dies, or gives up. There is
+   * no signalling server to report progress, so without this the dialog spins
+   * for ever whenever the two devices cannot reach each other.
+   *
+   * `timeoutMs` is null for the side that is still waiting on the user to carry
+   * a code to the other screen: no clock should run while a human is walking.
+   */
+  waitForPairing(timeoutMs: number | null = PAIRING_TIMEOUT_MS): Promise<boolean> {
+    const link = this.lastAttempt
+    if (!link) return Promise.resolve(false)
+    if (link.linkState !== 'connecting') return Promise.resolve(link.linkState === 'connected')
+    return new Promise<boolean>((resolve) => {
+      const waiter: PairingWaiter = {
+        link,
+        settle: (connected) => {
+          if (timer !== null) clearTimeout(timer)
+          this.waiters.delete(waiter)
+          resolve(connected)
+        },
+      }
+      const timer =
+        timeoutMs === null ? null : setTimeout(() => waiter.settle(false), timeoutMs)
+      this.waiters.add(waiter)
+    })
+  }
+
+  /** Abandon a half-finished handshake so it cannot be mistaken for a live one. */
+  private cancelPending(): void {
+    const link = this.pending
+    this.pending = null
+    this.pendingRole = null
+    if (!link) return
+    if (link.linkState === 'closed') this.links.delete(link)
+    else link.close()
+  }
+
+  /** Only a verified peer counts against the limit; dead attempts must not. */
+  private assertRoom(): void {
+    const paired = [...this.links].filter((l) => l.verified && l.linkState !== 'closed').length
+    if (paired >= MAX_PEERS) {
+      throw new Error(`You can pair up to ${MAX_PEERS} devices. Forget one first.`)
+    }
+  }
+
+  /** Pointing a device at its own screen is a real mistake; name it as one. */
+  private rejectOwnCode(payload: PairingPayload): void {
+    if (payload.deviceId === this.host.identity.deviceId) {
+      throw new Error('That is the code this device is showing. Scan it with your other device.')
+    }
   }
 
   /**
@@ -101,7 +202,7 @@ export class SyncManager {
     if (!payload.publicKey) return
     const derived = await fingerprintOfHex(payload.publicKey)
     if (derived !== payload.fingerprint) {
-      throw new Error('That pairing code failed its own integrity check.')
+      throw new Error('That code failed its integrity check, so it was not used. Start over with a fresh one.')
     }
   }
 
@@ -123,17 +224,27 @@ export class SyncManager {
 
   private onLinkState(link: PeerLink, state: LinkState): void {
     if (state === 'connected') {
-      if (this.pending === link) this.pending = null
+      if (this.pending === link) this.clearPendingSlot()
       void this.sayHello(link)
       this.ensureTimers()
     }
     if (state === 'closed') {
       this.links.delete(link)
-      if (this.pending === link) this.pending = null
+      if (this.pending === link) this.clearPendingSlot()
       if (link.verified) this.host.toast(`${link.peerName} disconnected`, 'warn')
       if (this.links.size === 0) this.stopTimers()
     }
+    if (state !== 'connecting') {
+      for (const waiter of [...this.waiters]) {
+        if (waiter.link === link) waiter.settle(state === 'connected')
+      }
+    }
     this.host.onPeersChanged(this.statuses())
+  }
+
+  private clearPendingSlot(): void {
+    this.pending = null
+    this.pendingRole = null
   }
 
   /** ── Handshake ──────────────────────────────────────────────────────── */
@@ -377,6 +488,7 @@ export class SyncManager {
 
   closeAll(): void {
     for (const link of [...this.links]) link.close()
+    for (const waiter of [...this.waiters]) waiter.settle(false)
     this.stopTimers()
   }
 }

@@ -24,21 +24,24 @@ export function base45Encode(bytes: Uint8Array): string {
   return out
 }
 
+/** Every way a code can be corrupt reads the same to the person holding it. */
+const DAMAGED = 'That code is damaged. Scan or paste it again.'
+
 export function base45Decode(text: string): Uint8Array {
   const vals = [...text].map((c) => {
     const v = B45.indexOf(c)
-    if (v < 0) throw new Error(`invalid character in code: ${c}`)
+    if (v < 0) throw new Error(DAMAGED)
     return v
   })
   const out: number[] = []
   let i = 0
   for (; i + 2 < vals.length; i += 3) {
     const v = vals[i]! + vals[i + 1]! * 45 + vals[i + 2]! * 45 * 45
-    if (v > 0xffff) throw new Error('invalid code')
+    if (v > 0xffff) throw new Error(DAMAGED)
     out.push(v >> 8, v & 0xff)
   }
   if (vals.length - i === 2) out.push(vals[i]! + vals[i + 1]! * 45)
-  else if (vals.length - i !== 0) throw new Error('invalid code length')
+  else if (vals.length - i !== 0) throw new Error(DAMAGED)
   return new Uint8Array(out)
 }
 

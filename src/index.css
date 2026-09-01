@@ -1,0 +1,337 @@
+@import 'tailwindcss';
+
+/* Space Grotesk, SIL OFL, self-hosted so the app has no third-party origin.
+   Bun inlines these four latin subsets into the stylesheet as base64 and offers
+   no way to opt out of that for CSS `url()`, so the first paint waits on ~53 KB
+   of font data. `font-display: swap` covers the gap, and the service worker
+   makes every later load local. */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/space-grotesk-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/space-grotesk-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/space-grotesk-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/space-grotesk-700.woff2') format('woff2');
+}
+
+/* Touch and stylus get larger controls; a mouse keeps the tighter density the
+   design was drawn at. Keyed on the pointer, not the viewport, so a laptop with
+   a touchscreen is covered and a small desktop window is not penalised. */
+@custom-variant coarse (@media (pointer: coarse));
+
+@theme {
+  --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-ground: #0f0d16;
+  --color-accent: #ffa06e;
+  --color-accent-bright: #ffb684;
+  --color-accent-deep: #ff8c5a;
+  --color-good: #7fe0a8;
+  --color-warn: #e8c26a;
+  --color-bad: #ff9088;
+  --color-panel: #0e0c18;
+  --color-modal: #0e0d14;
+  --color-ink: #1b1626;
+  --color-bad-bright: #ffb0a8;
+  --color-accent-wash: #ffe9dc;
+
+  /* Surfaces that float above the scene, darkest first. `panel-glass` is the
+     history drawer, `raised` covers popovers and tooltips, `toast` sits highest
+     and warmest, `sheet` is the pairing dialog. */
+  --color-panel-glass: rgb(14 12 24 / 0.92);
+  --color-sheet: #100e18;
+  --color-raised: rgb(16 14 26 / 0.97);
+  --color-toast: rgb(24 21 36 / 0.95);
+  --color-scrim: rgb(6 5 12 / 0.55);
+
+  /* The accent at reduced strength: the heatmap's four filled levels, and the
+     wash behind a selected control. Derived here so a change to --color-accent
+     carries through instead of stranding six hand-written alphas. */
+  --color-accent-soft: rgb(255 160 110 / 0.18);
+  --color-heat-1: rgb(255 160 110 / 0.2);
+  --color-heat-2: rgb(255 160 110 / 0.4);
+  --color-heat-3: rgb(255 160 110 / 0.65);
+  --color-heat-4: #ffa06e;
+
+  /* Text tiers. Every one clears WCAG AA (4.5:1) against the darkest panel
+     surface; the faint end used to sit at 3.2:1 and failed. */
+  --color-ink-secondary: rgb(255 255 255 / 0.85);
+  --color-ink-tertiary: rgb(255 255 255 / 0.7);
+  --color-ink-muted: rgb(255 255 255 / 0.58);
+
+  --text-count: clamp(4.5rem, 17vw, 11rem);
+}
+
+/* Layer ladder, in paint order. Each step exists because something above it
+   must be reachable while it is open:
+     30  device popover      50  history panel      60  settings modal
+     70  pairing dialog      80  toasts             90  confirm dialog
+    100  tooltip                                                        */
+
+@property --scene-a {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #151130;
+}
+@property --scene-b {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #2f1e4b;
+}
+@property --scene-c {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6d395b;
+}
+@property --scene-d {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #b55e52;
+}
+@property --scene-e {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #e68e60;
+}
+@property --scene-glow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgb(255 176 110 / 0.5);
+}
+
+@layer base {
+  :root {
+    /* The scene gradient is re-tinted by time of day from the shell. */
+    --scene-a: #151130;
+    --scene-b: #2f1e4b;
+    --scene-c: #6d395b;
+    --scene-d: #b55e52;
+    --scene-e: #e68e60;
+    --scene-glow: rgb(255 176 110 / 0.5);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+
+    /* The sky shifts between morning, day, dusk and night. Transitioning the
+       registered colours crossfades the gradient itself; no second layer. */
+    transition:
+      --scene-a 900ms ease,
+      --scene-b 900ms ease,
+      --scene-c 900ms ease,
+      --scene-d 900ms ease,
+      --scene-e 900ms ease,
+      --scene-glow 900ms ease;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-ground);
+    color: white;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  /* The surfaces the browser draws for us still belong to the design. Left at
+     their defaults they are the one part of the page that looks unowned. */
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-ink);
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-accent);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.18) transparent;
+  }
+
+  /* Reserve the track so a scrolling panel never lays its scrollbar over the
+     content, and never reflows when the content grows past the fold. */
+  .scroll-region {
+    scrollbar-gutter: stable;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+    background-color: rgb(255 255 255 / 0.18);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(255 255 255 / 0.3);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* Overlays take focus on open so nothing inside is pre-selected; the panel
+     itself should not draw a ring for that. */
+  [role='dialog']:focus,
+  [role='alertdialog']:focus {
+    outline: none;
+  }
+
+  /* Charts are dense and horizontally scrollable; keep their bars crisp. */
+  [data-scroll-x] {
+    scrollbar-width: thin;
+  }
+}
+
+@utility scene-sky {
+  background-image: linear-gradient(
+    180deg,
+    var(--scene-a) 0%,
+    var(--scene-b) 30%,
+    var(--scene-c) 58%,
+    var(--scene-d) 78%,
+    var(--scene-e) 100%
+  );
+}
+
+@utility scene-glow {
+  background-image: radial-gradient(60% 34% at 50% 82%, var(--scene-glow), transparent 70%);
+}
+
+@utility scene-stars {
+  background-image:
+    radial-gradient(rgb(255 255 255 / 0.6) 0.8px, transparent 1.4px),
+    radial-gradient(rgb(255 255 255 / 0.35) 0.7px, transparent 1.2px);
+  background-size:
+    230px 170px,
+    140px 110px;
+  background-position:
+    20px 30px,
+    90px 60px;
+}
+
+/* Lifts a control's hit area to the 44px floor without changing what is drawn.
+   For controls whose size carries meaning: a switch track, a chart's bucket
+   pills, links sitting inside a sentence. */
+@utility tap-pad {
+  @media (pointer: coarse) {
+    position: relative;
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      translate: -50% -50%;
+      height: max(100%, 44px);
+      width: max(100%, 44px);
+    }
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Travels the same 9% of viewport height the old background-position drift
+   did: the layer is 130% tall, so 6.923% of itself. `transform` keeps this on
+   the compositor; `background-position` repainted the whole screen, forever. */
+@keyframes skydrift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -6.923%, 0);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.animate-skydrift {
+  animation: skydrift 60s ease-in-out infinite alternate;
+}
+.animate-twinkle {
+  animation: twinkle 7s ease-in-out infinite;
+}
+.animate-toast-in {
+  animation: toast-in 220ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Looping and spatial motion goes entirely. */
+  .animate-skydrift,
+  .animate-twinkle,
+  .animate-toast-in {
+    animation: none;
+  }
+
+  /* Movement goes, but the transitions that report state stay: a switch still
+     colours over, a tooltip still fades, a pill still fills. Killing every
+     transition outright leaves the interface snapping with no feedback, which
+     is not what the preference asks for. */
+  *,
+  *::before,
+  *::after {
+    transition-property: opacity, color, background-color, border-color, fill, stroke !important;
+    transition-duration: 150ms !important;
+  }
+}

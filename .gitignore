@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Environment. Commit a .env.example instead of any real values.
+.env
+.env.*
+!.env.example
+
+# Logs and crash reports
+*.log
+npm-debug.log*
+yarn-error.log*
+bun-debug.log*
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Deliberately NOT ignored, despite being generated:
+#   public/icons/*.png   rasterised from the .svg beside them, by hand. The
+#                        build only copies public/, so a fresh clone would ship
+#                        a manifest pointing at missing icons.
+#   src/fonts/*.woff2    vendored Space Grotesk subsets; the app has no
+#                        third-party font origin by design.
+#   bun.lock             the lockfile; commit it so installs are reproducible.

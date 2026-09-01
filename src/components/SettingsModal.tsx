@@ -119,7 +119,9 @@ export function SettingsModal({
     >
       <DialogContent
         aria-describedby={undefined}
-        className="z-60 sm:w-220 sm:max-w-[calc(100vw-2rem)]"
+        // A fixed height, not a max: otherwise the dialog resizes to each
+        // pane's content and jumps as you move between sections.
+        className="z-60 h-[92dvh] sm:h-[min(620px,calc(100dvh-2rem))] sm:w-220 sm:max-w-[calc(100vw-2rem)]"
       >
         <DialogHeader className="px-4.5 pt-4.5 sm:px-7 sm:pt-6">
           <DialogTitle>Settings</DialogTitle>

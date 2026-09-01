@@ -35,6 +35,10 @@ if (!result.success) {
 
 await cp(join(ROOT, 'public'), DIST, { recursive: true })
 
+// Only consulted if Pages is ever switched to deploying from a branch, where
+// Jekyll would otherwise drop files whose names begin with an underscore.
+await writeFile(join(DIST, '.nojekyll'), '')
+
 async function walk(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
   const files = await Promise.all(
@@ -46,9 +50,10 @@ async function walk(dir: string): Promise<string[]> {
   return files.flat()
 }
 
+// Relative to `sw.js`, which the worker resolves against its own URL.
 const precache = (await walk(DIST))
-  .map((f) => '/' + relative(DIST, f).split('\\').join('/'))
-  .filter((p) => !p.endsWith('.map') && p !== '/sw.js')
+  .map((f) => relative(DIST, f).split('\\').join('/'))
+  .filter((p) => !p.endsWith('.map') && p !== 'sw.js' && p !== '.nojekyll')
   .sort()
 
 const revision = Bun.hash(precache.join('|')).toString(36)

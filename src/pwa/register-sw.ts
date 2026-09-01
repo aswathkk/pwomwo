@@ -20,7 +20,7 @@ export function registerServiceWorker(hooks: SwHooks): void {
   })
 
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('/sw.js').then((registration) => {
+    void navigator.serviceWorker.register('./sw.js').then((registration) => {
       const watch = (worker: ServiceWorker | null) => {
         if (!worker) return
         worker.addEventListener('statechange', () => {

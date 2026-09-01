@@ -5,8 +5,13 @@
  * shell or fails loudly instead of caching half of it.
  */
 const REVISION = __REVISION__
-const PRECACHE = __PRECACHE__
 const CACHE = `pwomwo-${REVISION}`
+
+// The build lists paths relative to this file, which sits at the scope root,
+// so the app runs at the domain root or under a /<repo>/ base equally well.
+const PRECACHE = __PRECACHE__.map((path) => new URL(path, self.location).href)
+const SHELL = new URL('index.html', self.location).href
+const HOME = new URL('./', self.location).href
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -38,7 +43,7 @@ self.addEventListener('fetch', (event) => {
   // Navigations fall back to the cached shell so the app opens offline.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/index.html').then((r) => r || Response.error())),
+      fetch(request).catch(() => caches.match(SHELL).then((r) => r || Response.error())),
     )
     return
   }
@@ -70,7 +75,7 @@ self.addEventListener('notificationclick', (event) => {
         existing.postMessage({ type: 'notification-action', action: event.action })
         return
       }
-      await self.clients.openWindow('/')
+      await self.clients.openWindow(HOME)
     })(),
   )
 })

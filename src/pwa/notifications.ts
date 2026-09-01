@@ -14,6 +14,11 @@ export function permission(): NotificationPermission {
   return notificationsSupported() ? Notification.permission : 'denied'
 }
 
+/** Resolved against the page, so the icons load under any base path. */
+function asset(path: string): string {
+  return new URL(path, document.baseURI).href
+}
+
 /** Only ever called from the settings toggle, never on load. */
 export async function requestPermission(): Promise<NotificationPermission> {
   if (!notificationsSupported()) return 'denied'
@@ -43,8 +48,8 @@ export async function notifyPhaseEnd(n: PhaseNotification): Promise<void> {
   } = {
     body: n.body,
     tag: 'pwomwo-phase',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-badge-96.png',
+    icon: asset('icons/icon-192.png'),
+    badge: asset('icons/icon-badge-96.png'),
     renotify: true,
   }
   try {

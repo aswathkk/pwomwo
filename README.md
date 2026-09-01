@@ -24,9 +24,18 @@ bun run dev
 | `bun test` | Unit tests for the stats, merge, RLE and SDP-compaction logic |
 | `bun run typecheck` | `tsc --noEmit` |
 
+## Deploying
+
 Service workers, cameras, notifications, wake lock and WebRTC all require a
-secure context, so deploy over HTTPS. The build is fully static, so any static
-host will do.
+secure context, so serve the site over HTTPS. The build is otherwise
+undemanding: it is static files, and it writes no absolute URLs, so `dist/` runs
+from a domain root or from a subpath without being rebuilt for either.
+
+GitHub Pages is already wired up. `.github/workflows/deploy.yml` typechecks,
+runs the tests, builds, and publishes `dist/` on every push to `main`. It needs
+one setting in the repository: under Settings then Pages, set the source to
+GitHub Actions. The site is then served at `https://<user>.github.io/<repo>/`,
+and the service worker takes its scope from that path.
 
 ## How it fits together
 

@@ -421,8 +421,10 @@ export class Store {
   private applySideEffects(): void {
     const body = document.body
     body.dataset['phase'] = this.doc.phase
-    body.dataset['theme'] = this.settings.theme
     body.dataset['status'] = this.doc.status
+    // `data-theme` is not set here: the shell owns it, so that previewing a
+    // background in settings can override the saved one without this being
+    // able to stamp back over it on the next tick.
 
     if (this.doc.status === 'running' && this.settings.keepScreenAwake) void this.wakeLock.request()
     else void this.wakeLock.release()

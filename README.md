@@ -104,15 +104,23 @@ means a fresh QR exchange. Nothing is lost: history merges on the next pairing.
 Settings do not sync. Each device keeps its own durations, sounds and
 notification preferences.
 
+## Backgrounds
+
+Six, per device, under Settings then General: a sky that re-tints with the time
+of day, a flat dark, true black for OLED, and three animated shaders. The
+shaders are ported from [React Bits](https://reactbits.dev/backgrounds) (MIT +
+Commons Clause). They load only when chosen, stop rendering while the tab is
+hidden, and hold a single still frame under `prefers-reduced-motion`.
+
 ## Assets
 
 Space Grotesk (SIL OFL) is self-hosted in `src/fonts` so the app has no
-third-party origin. The scene is a CSS gradient that shifts with the time of day,
+third-party origin. The backgrounds are CSS, or a shader compiled at runtime,
 and the alert chimes are synthesised with the Web Audio API rather than shipped
 as files.
 
 The app mark is Phosphor `Timer` at `bold`, the same family and weight as every
-icon in the UI, drawn over the scene gradient. `public/icons/*.svg` are the
+icon in the UI, drawn over the dusk gradient. `public/icons/*.svg` are the
 sources; the PNGs beside them exist only because Android notification badges and
 iOS home screens will not take an SVG. Re-render them with:
 

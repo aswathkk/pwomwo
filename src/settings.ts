@@ -1,4 +1,5 @@
-import type { Settings, ThemeName, WeekStart } from './types'
+import type { Settings, WeekStart } from './types'
+import { isTheme } from './backgrounds'
 import { get, put } from './db'
 import { DEFAULT_BPM, isTimerSound, MAX_BPM, MIN_BPM, TIMER_SOUND_NONE } from './pwa/timer-sound'
 import { clamp } from './util'
@@ -79,7 +80,7 @@ export function validate(s: Partial<Settings>): Settings {
     timerSoundBpm: clamp(Math.round(merged.timerSoundBpm) || d.timerSoundBpm, MIN_BPM, MAX_BPM),
     timerSoundVolume: clamp(merged.timerSoundVolume, 0, 1),
     weekStart: (merged.weekStart === 1 ? 1 : 0) as WeekStart,
-    theme: (['scene', 'minimal'] as ThemeName[]).includes(merged.theme) ? merged.theme : 'scene',
+    theme: isTheme(merged.theme) ? merged.theme : 'scene',
     deviceName: String(merged.deviceName || d.deviceName).slice(0, 32),
   }
 }

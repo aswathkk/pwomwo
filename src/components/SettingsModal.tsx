@@ -46,6 +46,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cls, Dot, Row, Section, Stepper, Icons } from './primitives'
+import { BackgroundPicker } from './BackgroundPicker'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -62,10 +63,13 @@ export function SettingsModal({
   initialTab,
   onClose,
   onPair,
+  onPreviewTheme,
 }: {
   initialTab: string
   onClose: () => void
   onPair: () => void
+  /** Paints the draft background behind the dialog; `null` gives it back. */
+  onPreviewTheme: (theme: ThemeName | null) => void
 }) {
   const state = useAppState()
   const [tab, setTab] = useState(initialTab)
@@ -74,6 +78,14 @@ export function SettingsModal({
     () => JSON.stringify(draft) !== JSON.stringify(state.settings),
     [draft, state.settings],
   )
+
+  // A background is chosen by looking at it, so the draft one is on screen the
+  // moment it is picked. Closing, discarding or saving all unmount this, and
+  // the shell falls back to whatever is saved.
+  useEffect(() => {
+    onPreviewTheme(draft.theme)
+  }, [draft.theme, onPreviewTheme])
+  useEffect(() => () => onPreviewTheme(null), [onPreviewTheme])
 
   const requestClose = useCallback(async () => {
     if (!dirty) {
@@ -260,17 +272,7 @@ function GeneralTab({ draft, set }: { draft: Settings; set: Setter }) {
         </Select>
       </Row>
 
-      <Row label="Theme" hint="Minimal dark is used automatically when you ask to save data.">
-        <Select value={draft.theme} onValueChange={(v) => set('theme', v as ThemeName)}>
-          <SelectTrigger aria-label="Theme" className="min-w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="scene">Dusk sky</SelectItem>
-            <SelectItem value="minimal">Minimal dark</SelectItem>
-          </SelectContent>
-        </Select>
-      </Row>
+      <BackgroundPicker value={draft.theme} onChange={(v) => set('theme', v)} />
 
       <Row
         label="Zen view while a timer runs"

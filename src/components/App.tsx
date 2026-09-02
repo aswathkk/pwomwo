@@ -1,5 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { store } from '../store'
+import { applyThemeColor } from '../backgrounds'
+import type { ThemeName } from '../types'
 import { useAppState } from '../hooks/useStore'
 import { Scene } from './Scene'
 import { TopBar } from './TopBar'
@@ -37,6 +39,9 @@ export function App() {
   const [overlay, setOverlay] = useState<Overlay>('none')
   const [chromeHidden, setChromeHidden] = useState(false)
   const [settingsTab, setSettingsTab] = useState('timers')
+  // Set while the settings dialog has a background selected that has not been
+  // saved yet, so the choice is previewed full-screen instead of in a swatch.
+  const [previewTheme, setPreviewTheme] = useState<ThemeName | null>(null)
 
   const close = useCallback(() => setOverlay('none'), [])
   const openSettingsAt = useCallback((tab: string) => {
@@ -140,16 +145,32 @@ export function App() {
   }, [overlay, openSettingsAt])
 
   const { doc, settings, remainingMs } = state
+  const theme = previewTheme ?? settings.theme
+
+  // The one writer of the background's DOM hooks: `body[data-theme]` (which
+  // the OLED surface overrides key off) and the browser UI colour. Held back
+  // until the saved settings land, for the same reason the scene is.
+  useEffect(() => {
+    if (!state.ready) return
+    document.body.dataset['theme'] = theme
+    applyThemeColor(theme)
+  }, [theme, state.ready])
+
   const elapsed = doc.durationMs > 0 ? 1 - remainingMs / doc.durationMs : 0
   const fade = chromeFade(chromeHidden)
 
   return (
     <TooltipProvider>
-      <Scene theme={settings.theme} isBreak={doc.phase !== 'focus'} />
+      {/* The saved background arrives with the rest of the settings, out of
+          IndexedDB, so there is nothing truthful to paint before that: the
+          default sky ahead of it is a wrong-state flash like any other, and on
+          the two black backgrounds it is a screen of light where the whole
+          point was to have none. Until then the page is `--color-ground`. */}
+      {state.ready ? <Scene theme={theme} isBreak={doc.phase !== 'focus'} /> : null}
 
       {/* `store.init()` reads the persisted timer from IndexedDB. Painting the
           default 25:00 first and snapping to the real value a moment later is a
-          visible wrong-state flash, so the scene shows alone until it lands. */}
+          visible wrong-state flash, so the page stays bare until it lands. */}
       <div
         className={`fixed inset-0 flex flex-col transition-opacity duration-300 ${
           state.ready ? 'opacity-100' : 'opacity-0'
@@ -206,6 +227,7 @@ export function App() {
           initialTab={settingsTab}
           onClose={close}
           onPair={() => setOverlay('pairing')}
+          onPreviewTheme={setPreviewTheme}
         />
       ) : null}
       {overlay === 'pairing' ? (

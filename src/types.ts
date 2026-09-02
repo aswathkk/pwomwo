@@ -1,3 +1,5 @@
+import type { ThemeName } from './backgrounds'
+
 /** Phases of the pomodoro cycle. */
 export type Phase = 'focus' | 'shortBreak' | 'longBreak'
 
@@ -47,7 +49,8 @@ export interface Tombstone {
   deletedAt: number
 }
 
-export type ThemeName = 'scene' | 'minimal'
+/** The background behind the clock; the catalogue lives in `backgrounds.ts`. */
+export type { ThemeName }
 export type WeekStart = 0 | 1
 
 export interface Settings {

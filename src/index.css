@@ -117,6 +117,25 @@
   --ring: #ffa06e;
 }
 
+/* OLED black. Every surface the app paints drops to true black or to a
+   translucency over it, so an OLED panel leaves those pixels unlit — a panel
+   at #0e0c18 is lit, just dimly, and a full-screen one costs real battery.
+   Contrast only improves: the ink tiers and the white borders are unchanged,
+   and they were tuned against a darker surface than this. */
+body[data-theme='oled'] {
+  --color-ground: #000000;
+  --color-panel: #000000;
+  --color-modal: #000000;
+  --color-sheet: #000000;
+  --color-panel-glass: rgb(0 0 0 / 0.94);
+  --color-raised: rgb(0 0 0 / 0.97);
+  --color-toast: rgb(8 8 10 / 0.96);
+  --color-scrim: rgb(0 0 0 / 0.7);
+
+  --background: #000000;
+  --popover: rgb(0 0 0 / 0.97);
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -150,43 +169,50 @@
 @property --scene-a {
   syntax: '<color>';
   inherits: true;
-  initial-value: #151130;
+  initial-value: #10102e;
 }
 @property --scene-b {
   syntax: '<color>';
   inherits: true;
-  initial-value: #2f1e4b;
+  initial-value: #351c58;
 }
 @property --scene-c {
   syntax: '<color>';
   inherits: true;
-  initial-value: #6d395b;
+  initial-value: #7a2f6b;
 }
 @property --scene-d {
   syntax: '<color>';
   inherits: true;
-  initial-value: #b55e52;
+  initial-value: #c9515a;
 }
 @property --scene-e {
   syntax: '<color>';
   inherits: true;
-  initial-value: #e68e60;
+  initial-value: #ff9a56;
 }
 @property --scene-glow {
   syntax: '<color>';
   inherits: true;
-  initial-value: rgb(255 176 110 / 0.5);
+  initial-value: rgb(255 150 90 / 0.6);
+}
+@property --scene-star-opacity {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.75;
 }
 
 @layer base {
   :root {
     /* The scene gradient is re-tinted by time of day from the shell. */
-    --scene-a: #151130;
-    --scene-b: #2f1e4b;
-    --scene-c: #6d395b;
-    --scene-d: #b55e52;
-    --scene-e: #e68e60;
-    --scene-glow: rgb(255 176 110 / 0.5);
+    --scene-a: #10102e;
+    --scene-b: #351c58;
+    --scene-c: #7a2f6b;
+    --scene-d: #c9515a;
+    --scene-e: #ff9a56;
+    --scene-glow: rgb(255 150 90 / 0.6);
+    /* Stars are for a sky dark enough to have them; midday turns them off. */
+    --scene-star-opacity: 0.75;
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-t: env(safe-area-inset-top, 0px);
     /* Non-zero only in landscape, where the notch and the home indicator sit
@@ -202,7 +228,8 @@
       --scene-c 900ms ease,
       --scene-d 900ms ease,
       --scene-e 900ms ease,
-      --scene-glow 900ms ease;
+      --scene-glow 900ms ease,
+      --scene-star-opacity 900ms ease;
   }
 
   html,
@@ -283,19 +310,34 @@
   }
 }
 
+/* The stops end at 78%, not 100%, because this layer is 130% of the viewport
+   tall so that it has somewhere to drift: the bottom quarter of the gradient
+   is below the fold and never seen. With the horizon at 100% the screen ended
+   on a darkened mid-stop, which is a brown smear rather than a sunset. */
 @utility scene-sky {
   background-image: linear-gradient(
     180deg,
     var(--scene-a) 0%,
-    var(--scene-b) 30%,
-    var(--scene-c) 58%,
-    var(--scene-d) 78%,
-    var(--scene-e) 100%
+    var(--scene-b) 23%,
+    var(--scene-c) 45%,
+    var(--scene-d) 62%,
+    var(--scene-e) 78%
   );
 }
 
 @utility scene-glow {
-  background-image: radial-gradient(60% 34% at 50% 82%, var(--scene-glow), transparent 70%);
+  background-image: radial-gradient(78% 46% at 50% 88%, var(--scene-glow), transparent 74%);
+}
+
+/* Holds the contrast the chrome needs at the edges of the screen, so the sky
+   in the middle does not have to be flattened under a full-bleed scrim. */
+@utility scene-vignette {
+  background-image: radial-gradient(
+    128% 108% at 50% 46%,
+    transparent 42%,
+    rgb(6 4 14 / 0.22) 74%,
+    rgb(6 4 14 / 0.38) 100%
+  );
 }
 
 @utility scene-stars {

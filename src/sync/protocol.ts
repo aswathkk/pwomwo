@@ -15,7 +15,12 @@ const RECORDS_PER_MESSAGE = 40
 const SKEW_WARN_MS = 30_000
 
 export interface SyncHost {
-  identity: Identity
+  /**
+   * Read on every use, never captured: a rename replaces the identity object,
+   * and a reference taken at construction would go on announcing the old name
+   * until the page reloaded.
+   */
+  identity: () => Identity
   repo: HistoryRepo
   stunEnabled: () => boolean
   getTimerDoc: () => TimerDoc
@@ -132,7 +137,8 @@ export class SyncManager {
     this.pendingRole = 'offer'
     this.lastAttempt = link
     this.offeredOnce = true
-    return link.makeOffer(this.host.identity, publicKeyHex(this.host.identity))
+    const identity = this.host.identity()
+    return link.makeOffer(identity, publicKeyHex(identity))
   }
 
   /** Device B: consume A's offer and produce the answer code to show back. */
@@ -152,7 +158,8 @@ export class SyncManager {
     this.pendingRole = 'answer'
     this.lastAttempt = link
     this.remember(link, payload)
-    return link.acceptOffer(payload, this.host.identity, publicKeyHex(this.host.identity))
+    const identity = this.host.identity()
+    return link.acceptOffer(payload, identity, publicKeyHex(identity))
   }
 
   /** Device A: consume B's answer and complete the connection. */
@@ -232,7 +239,7 @@ export class SyncManager {
 
   /** Pointing a device at its own screen is a real mistake; name it as one. */
   private rejectOwnCode(payload: PairingPayload): void {
-    if (payload.deviceId === this.host.identity.deviceId) {
+    if (payload.deviceId === this.host.identity().deviceId) {
       throw new Error('That is the code this device is showing. Scan it with your other device.')
     }
   }
@@ -294,14 +301,15 @@ export class SyncManager {
 
   private async sayHello(link: PeerLink): Promise<void> {
     const pair = await link.fingerprintPair()
+    const identity = this.host.identity()
     link.send({
       v: 1,
       type: 'hello',
       sentAt: Date.now(),
-      deviceId: this.host.identity.deviceId,
-      name: this.host.identity.name,
-      publicKey: publicKeyHex(this.host.identity),
-      signature: await sign(this.host.identity, pair),
+      deviceId: identity.deviceId,
+      name: identity.name,
+      publicKey: publicKeyHex(identity),
+      signature: await sign(identity, pair),
       appVersion: APP_VERSION,
       capabilities: ['timer', 'history'],
     })
@@ -312,6 +320,8 @@ export class SyncManager {
     switch (msg.type) {
       case 'hello':
         return this.onHello(link, msg)
+      case 'profile':
+        return this.onProfile(link, msg)
       case 'ping':
         link.send({ v: 1, type: 'pong', sentAt: Date.now(), echo: msg.sentAt })
         return
@@ -398,6 +408,36 @@ export class SyncManager {
     // Initial sync: exchange day digests, then only the days that differ.
     link.send({ v: 1, type: 'history.digest', sentAt: Date.now(), digest: this.host.repo.digest() })
     link.send({ v: 1, type: 'timer.state', sentAt: Date.now(), doc: this.host.getTimerDoc() })
+  }
+
+  /**
+   * A rename has to reach devices that are already connected. `hello` carries
+   * the name once, at connect, and the peer writes it to storage, so without
+   * this a renamed device stayed under its old name on every other screen
+   * until the link happened to drop.
+   */
+  private async onProfile(link: PeerLink, msg: Envelope): Promise<void> {
+    // Only a peer that has proved its key may rewrite the name we show for it.
+    if (!link.verified) return
+    const name = String(msg['name'] ?? '').slice(0, 32)
+    if (!name || name === link.peerName) return
+    link.peerName = name
+
+    const record = this.remembered.get(link.peerId)
+    if (record) {
+      const next: PeerRecord = { ...record, name }
+      await put('peers', next)
+      this.remembered.set(next.deviceId, next)
+    }
+    this.host.onPeersChanged(this.statuses())
+  }
+
+  /** Tell every live peer that this device has been renamed. */
+  broadcastProfile(): void {
+    const { name } = this.host.identity()
+    for (const link of this.links) {
+      if (link.verified) link.send({ v: 1, type: 'profile', sentAt: Date.now(), name })
+    }
   }
 
   /** ── Timer replication ──────────────────────────────────────────────── */

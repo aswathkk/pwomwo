@@ -114,7 +114,7 @@ export class Store {
     else this.doc = initialDoc(this.ctx())
 
     this.sync = new SyncManager({
-      identity: this.identity,
+      identity: () => this.identity!,
       repo: this.repo,
       stunEnabled: () => this.settings.stunEnabled,
       getTimerDoc: () => this.doc,
@@ -269,6 +269,7 @@ export class Store {
     await saveSettings(next)
     if (this.identity && next.deviceName !== previous.deviceName) {
       this.identity = await renameIdentity(this.identity, next.deviceName)
+      this.safely(() => this.sync?.broadcastProfile())
     }
     // A duration change re-arms an idle timer but never disturbs a running one.
     if (this.doc.status === 'idle') {

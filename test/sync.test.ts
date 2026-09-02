@@ -133,7 +133,7 @@ describe('identity helpers', () => {
 describe('remembered peers', () => {
   const host = (onPeersChanged: (peers: PeerStatus[]) => void) =>
     ({
-      identity: { deviceId: 'dev_self' } as never,
+      identity: () => ({ deviceId: 'dev_self', name: 'This device' }) as never,
       repo: {} as never,
       stunEnabled: () => false,
       getTimerDoc: () => ({}) as never,
@@ -170,6 +170,46 @@ describe('remembered peers', () => {
     expect(statuses.find((p) => p.deviceId === 'dev_a')?.lastSyncAt).toBe(1_700_000_000_000)
     // The UI has to be told, or the toolbar stays empty until something else moves.
     expect(published).toEqual(statuses)
+  })
+
+  test('a rename from a verified peer updates the stored name', async () => {
+    await put('peers', record('dev_a', 'Phone', 1))
+    const sync = new SyncManager(host(() => {}))
+    await sync.loadRemembered()
+
+    const link = { verified: true, peerId: 'dev_a', peerName: 'Phone' }
+    await (sync as never as { onMessage: (l: unknown, m: unknown) => Promise<void> }).onMessage(
+      link,
+      { v: 1, type: 'profile', sentAt: Date.now(), name: 'Pixel' },
+    )
+
+    expect(link.peerName).toBe('Pixel')
+    expect(sync.statuses()[0]?.name).toBe('Pixel')
+    // Persisted, or the old name comes back on the next reload.
+    expect((await getAll<PeerRecord>('peers'))[0]?.name).toBe('Pixel')
+  })
+
+  test('a rename is announced from the current identity, not the one at startup', () => {
+    let name = 'Laptop'
+    const sync = new SyncManager({
+      identity: () => ({ deviceId: 'dev_self', name }) as never,
+      repo: {} as never,
+      stunEnabled: () => false,
+      getTimerDoc: () => ({}) as never,
+      applyTimerDoc: () => {},
+      onPeersChanged: () => {},
+      toast: () => {},
+      confirmClear: async () => false,
+      clearHistoryLocally: async () => {},
+    } as never)
+
+    const sent: Record<string, unknown>[] = []
+    const links = (sync as never as { links: Set<unknown> }).links
+    links.add({ verified: true, send: (m: Record<string, unknown>) => sent.push(m) })
+
+    name = 'Desk'
+    sync.broadcastProfile()
+    expect(sent).toEqual([{ v: 1, type: 'profile', sentAt: expect.any(Number), name: 'Desk' }])
   })
 
   test('forgetting a device drops it from the restored list', async () => {

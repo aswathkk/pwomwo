@@ -145,7 +145,7 @@ export function TimerStage({
         className="landscape-short:col-start-1 landscape-short:row-span-3 landscape-short:row-start-1"
       >
         <div
-          className="text-count tabular leading-none font-bold tracking-[-0.03em] whitespace-nowrap transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] text-shadow-[0_4px_40px_rgb(0_0_0/0.35)]"
+          className="text-count tabular leading-none font-bold tracking-[-0.03em] whitespace-nowrap select-none transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] text-shadow-[0_4px_40px_rgb(0_0_0/0.35)]"
           style={zen ? { transform: zen } : undefined}
         >
           {clock}

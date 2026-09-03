@@ -2,6 +2,7 @@ import type { SessionRecord, WeekStart } from '../types'
 import {
   addDays,
   dayKey,
+  dayKeyOfRecord,
   localDateOfRecord,
   startOfDay,
   startOfMonth,
@@ -156,7 +157,7 @@ export function computeStats(
   // ── Heatmap ───────────────────────────────────────────────────────────
   const perDay = new Map<string, number>()
   for (const r of sorted) {
-    const key = dayKey(localDateOfRecord(r.endedAt, r.tzOffsetMin))
+    const key = dayKeyOfRecord(r.endedAt, r.tzOffsetMin)
     perDay.set(key, (perDay.get(key) ?? 0) + 1)
   }
   const days = Math.round(heatMonths * 30.44)

@@ -1,16 +1,17 @@
 import { describe, expect, test } from 'bun:test'
 import { computeStats } from '../src/history/stats'
+import { dayKey } from '../src/util'
 import type { SessionRecord } from '../src/types'
 
 /** Builds a record that ended at a given local wall-clock time in +00:00. */
-function record(iso: string, id = iso): SessionRecord {
+function record(iso: string, id = iso, tzOffsetMin = 0): SessionRecord {
   const endedAt = Date.parse(iso)
   return {
     id,
     endedAt,
     startedAt: endedAt - 1_500_000,
     durationSec: 1500,
-    tzOffsetMin: 0,
+    tzOffsetMin,
     deviceId: 'dev_test',
     source: 'timer',
   }
@@ -83,6 +84,28 @@ describe('computeStats', () => {
     expect(stats.heatCells.length / 7).toBeGreaterThanOrEqual(39)
     expect(stats.heatTotal).toBe(1)
     expect(stats.heatTitle).toContain('in the last 9 months')
+  })
+
+  test('a heatmap cell holds the recording device’s own day, not this device’s', () => {
+    // Four sessions on the evening of Sun 30 Aug 2026 in IST (UTC+5:30). Read
+    // with the viewing device's offset instead of the record's, they slid onto
+    // the 31st.
+    const ist = [0, 1, 2, 3].map((i) =>
+      record(`2026-08-30T${14 + i}:30:00Z`, `ist-${i}`, -330),
+    )
+    const tz = process.env.TZ
+    try {
+      for (const zone of ['Asia/Kolkata', 'UTC', 'America/Los_Angeles']) {
+        process.env.TZ = zone
+        const stats = computeStats(ist, { now: NOW, weekStart: 0, bucket: 30 })
+        const on = (key: string) =>
+          stats.heatCells.find((c) => c.date && dayKey(c.date) === key)?.count ?? 0
+        expect(on('2026-08-30')).toBe(4)
+        expect(on('2026-08-31')).toBe(0)
+      }
+    } finally {
+      process.env.TZ = tz
+    }
   })
 
   test('averages divide the total by elapsed days, never by zero', () => {

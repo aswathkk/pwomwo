@@ -1,6 +1,6 @@
 import type { SessionRecord, Tombstone } from '../types'
 import { clear, getAll, putMany, put } from '../db'
-import { dayKey, fnv1a, localDateOfRecord } from '../util'
+import { dayKeyOfRecord, fnv1a } from '../util'
 
 /**
  * History is a grow-only set keyed by record id (PRD SYN-17): merges are a
@@ -99,7 +99,7 @@ export class HistoryRepo {
   digest(): Record<string, { count: number; hash: number }> {
     const out: Record<string, { count: number; hash: number }> = {}
     for (const r of this.all()) {
-      const key = dayKey(localDateOfRecord(r.endedAt, r.tzOffsetMin))
+      const key = dayKeyOfRecord(r.endedAt, r.tzOffsetMin)
       const slot = (out[key] ??= { count: 0, hash: 0 })
       slot.count++
       slot.hash = (slot.hash ^ fnv1a(r.id)) >>> 0
@@ -109,9 +109,7 @@ export class HistoryRepo {
 
   recordsForDays(days: string[]): SessionRecord[] {
     const want = new Set(days)
-    return this.all().filter((r) =>
-      want.has(dayKey(localDateOfRecord(r.endedAt, r.tzOffsetMin))),
-    )
+    return this.all().filter((r) => want.has(dayKeyOfRecord(r.endedAt, r.tzOffsetMin)))
   }
 
   async rememberTombstones(ids: string[]): Promise<void> {

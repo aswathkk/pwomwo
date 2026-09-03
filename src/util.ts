@@ -85,6 +85,18 @@ export function localDateOfRecord(endedAt: number, tzOffsetMin: number): Date {
   return new Date(endedAt - tzOffsetMin * 60_000)
 }
 
+/**
+ * `YYYY-MM-DD` for the day a session ended *where it was recorded*. The Date
+ * `localDateOfRecord` hands back carries that wall clock in its UTC fields, so
+ * reading it with `dayKey`'s local getters shifts the day by this device's own
+ * offset — an evening session lands on tomorrow.
+ */
+export function dayKeyOfRecord(endedAt: number, tzOffsetMin: number): string {
+  const d = localDateOfRecord(endedAt, tzOffsetMin)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
+
 export function startOfDay(d: Date): Date {
   const x = new Date(d)
   x.setHours(0, 0, 0, 0)

@@ -70,10 +70,16 @@ export function TimerStage({
   const reduceMotion = useReducedMotion()
   const [zen, setZen] = useState('')
 
+  // The chrome also fades on its own in fullscreen, which is an older setting
+  // than this one, so a hidden chrome is not on its own a zen view: without
+  // the setting the fullscreen fade would grow the clock for someone who
+  // turned zen view off.
+  //
   // Re-measured when the clock loses a digit (10:00 → 9:59), because the box it
   // has to fill into changes shape at that moment.
+  const zenEnabled = chromeHidden && settings.idleHideControls
   useLayoutEffect(() => {
-    if (!chromeHidden || reduceMotion) {
+    if (!zenEnabled || reduceMotion) {
       setZen('')
       return
     }
@@ -84,7 +90,7 @@ export function TimerStage({
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [chromeHidden, reduceMotion, clock.length])
+  }, [zenEnabled, reduceMotion, clock.length])
 
   return (
     /* Portrait stacks phase, clock, controls, hint. A landscape phone has no

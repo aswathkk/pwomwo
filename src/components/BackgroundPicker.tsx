@@ -1,9 +1,8 @@
-import { useRef, type KeyboardEvent } from 'react'
 import { CheckIcon } from '@phosphor-icons/react'
 import { useReducedMotion } from 'motion/react'
 import { BACKGROUNDS, backgroundDef } from '../backgrounds'
 import type { ThemeName } from '../types'
-import { cls } from './primitives'
+import { cls, useRadioTiles } from './primitives'
 
 /**
  * Backgrounds as swatches rather than a dropdown: the choice is entirely
@@ -18,41 +17,13 @@ export function BackgroundPicker({
   value: ThemeName
   onChange: (next: ThemeName) => void
 }) {
-  const tiles = useRef<(HTMLButtonElement | null)[]>([])
   const reduceMotion = useReducedMotion()
   const selected = backgroundDef(value)
-
-  // A radio group moves the selection with the arrow keys, not just the focus,
-  // and holds a single tab stop. Anything less and a keyboard lands on four
-  // separate buttons that happen to look related.
-  const onKeyDown = (event: KeyboardEvent) => {
-    const index = BACKGROUNDS.findIndex((b) => b.id === value)
-    const last = BACKGROUNDS.length - 1
-    let next = index
-    switch (event.key) {
-      case 'ArrowRight':
-      case 'ArrowDown':
-        next = index >= last ? 0 : index + 1
-        break
-      case 'ArrowLeft':
-      case 'ArrowUp':
-        next = index <= 0 ? last : index - 1
-        break
-      case 'Home':
-        next = 0
-        break
-      case 'End':
-        next = last
-        break
-      default:
-        return
-    }
-    event.preventDefault()
-    const def = BACKGROUNDS[next]
-    if (!def) return
-    onChange(def.id)
-    tiles.current[next]?.focus()
-  }
+  const { tiles, onKeyDown } = useRadioTiles(
+    BACKGROUNDS.map((b) => b.id),
+    value,
+    onChange,
+  )
 
   return (
     <div className="px-0.5 py-1">

@@ -7,7 +7,16 @@
  * what the real layer looks like, not a screenshot of it.
  */
 
-export type ThemeName = 'scene' | 'minimal' | 'oled' | 'aurora' | 'soft-aurora' | 'silk'
+export type ThemeName =
+  | 'scene'
+  | 'minimal'
+  | 'oled'
+  | 'ember'
+  | 'mesh'
+  | 'graph'
+  | 'aurora'
+  | 'soft-aurora'
+  | 'silk'
 
 export interface BackgroundDef {
   id: ThemeName
@@ -43,6 +52,37 @@ export const BACKGROUNDS: BackgroundDef[] = [
     hint: 'True black, so an OLED screen leaves those pixels unlit. Panels go black to match.',
     animated: false,
     swatch: '#000000',
+  },
+  {
+    id: 'ember',
+    label: 'Ember',
+    hint: 'A hearth after dark: near-black above, a low warm glow that breathes below. The warm one.',
+    animated: true,
+    swatch:
+      'radial-gradient(70% 55% at 50% 104%, rgb(255 126 62 / 0.6), transparent 70%),' +
+      'linear-gradient(180deg, #120a10 0%, #1c0d14 40%, #35131a 72%, #5a2418 100%)',
+  },
+  {
+    id: 'mesh',
+    label: 'Mesh',
+    hint: 'Three pools of colour drifting over a deep ground, blending where they meet. Slow, and light on a GPU.',
+    animated: true,
+    swatch:
+      'radial-gradient(60% 60% at 22% 28%, rgb(122 63 214 / 0.85), transparent 70%),' +
+      'radial-gradient(55% 55% at 78% 30%, rgb(64 196 178 / 0.6), transparent 70%),' +
+      'radial-gradient(60% 50% at 52% 92%, rgb(255 120 110 / 0.6), transparent 70%),' +
+      '#0b0916',
+  },
+  {
+    id: 'graph',
+    label: 'Graph paper',
+    hint: 'Deep navy ruled into a fine grid and lit from above. Still. The segment and dial faces sit well on it.',
+    animated: false,
+    swatch:
+      'radial-gradient(80% 60% at 50% 0%, rgb(120 150 255 / 0.22), transparent 70%),' +
+      'repeating-linear-gradient(0deg, rgb(255 255 255 / 0.09) 0 1px, transparent 1px 11px),' +
+      'repeating-linear-gradient(90deg, rgb(255 255 255 / 0.09) 0 1px, transparent 1px 11px),' +
+      '#0a0f1f',
   },
   {
     id: 'aurora',
@@ -101,6 +141,9 @@ const THEME_COLORS: Record<ThemeName, string> = {
   scene: '#171233',
   minimal: '#0f0d16',
   oled: '#000000',
+  ember: '#120a10',
+  mesh: '#0b0916',
+  graph: '#0a0f1f',
   aurora: '#07060d',
   'soft-aurora': '#07060d',
   silk: '#2b2344',

@@ -3,6 +3,7 @@ import { useReducedMotion } from 'motion/react'
 import type { Phase, Settings, TimerDoc } from '../types'
 import { store } from '../store'
 import { formatClock } from '../util'
+import { Clock } from './Clock'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -145,16 +146,29 @@ export function TimerStage({
       </div>
 
       {/* The outer box holds the place in the layout, so it still measures the
-          clock's real position while the inner one is scaled away from it. */}
+          clock's real position while the inner one is scaled away from it. The
+          face's own motion lives a level further in, so the two transforms
+          never fight over the same element. */}
       <div
         ref={box}
         className="landscape-short:col-start-1 landscape-short:row-span-3 landscape-short:row-start-1"
       >
+        {/* `pointer-events-none` on the box that carries the transform, not
+            just on the face inside it: in zen view this box is scaled out
+            over the controls, and a digit that overhangs its line box (a card
+            mid-flip, a digit mid-fade) reaches the buttons even when it is
+            not. Nothing in here was ever clickable. */}
         <div
-          className="text-count tabular leading-none font-bold tracking-[-0.03em] whitespace-nowrap select-none transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] text-shadow-[0_4px_40px_rgb(0_0_0/0.35)]"
+          className="text-count pointer-events-none transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={zen ? { transform: zen } : undefined}
         >
-          {clock}
+          <Clock
+            style={settings.clockStyle}
+            clock={clock}
+            remainingMs={remainingMs}
+            durationMs={doc.durationMs}
+            running={doc.status === 'running'}
+          />
         </div>
       </div>
       <p className="sr-only" role="status" aria-live="polite">

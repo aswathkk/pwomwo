@@ -1,4 +1,5 @@
 import type { ThemeName } from './backgrounds'
+import type { ClockStyleName } from './clocks'
 
 /** Phases of the pomodoro cycle. */
 export type Phase = 'focus' | 'shortBreak' | 'longBreak'
@@ -51,6 +52,8 @@ export interface Tombstone {
 
 /** The background behind the clock; the catalogue lives in `backgrounds.ts`. */
 export type { ThemeName }
+/** The face the countdown is drawn as; the catalogue lives in `clocks.ts`. */
+export type { ClockStyleName }
 export type WeekStart = 0 | 1
 
 export interface Settings {
@@ -58,6 +61,7 @@ export interface Settings {
   keepScreenAwake: boolean
   weekStart: WeekStart
   theme: ThemeName
+  clockStyle: ClockStyleName
   focusMin: number
   shortBreakMin: number
   longBreakMin: number

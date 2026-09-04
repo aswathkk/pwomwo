@@ -1,5 +1,6 @@
 import type { Settings, WeekStart } from './types'
 import { isTheme } from './backgrounds'
+import { isClockStyle } from './clocks'
 import { get, put } from './db'
 import { DEFAULT_BPM, isTimerSound, MAX_BPM, MIN_BPM, TIMER_SOUND_NONE } from './pwa/timer-sound'
 import { clamp } from './util'
@@ -46,6 +47,7 @@ export function defaultSettings(): Settings {
     keepScreenAwake: mobile,
     weekStart: localeWeekStart(),
     theme: prefersReducedData() ? 'minimal' : 'scene',
+    clockStyle: 'plain',
     focusMin: 25,
     shortBreakMin: 5,
     longBreakMin: 15,
@@ -81,6 +83,7 @@ export function validate(s: Partial<Settings>): Settings {
     timerSoundVolume: clamp(merged.timerSoundVolume, 0, 1),
     weekStart: (merged.weekStart === 1 ? 1 : 0) as WeekStart,
     theme: isTheme(merged.theme) ? merged.theme : 'scene',
+    clockStyle: isClockStyle(merged.clockStyle) ? merged.clockStyle : 'plain',
     deviceName: String(merged.deviceName || d.deviceName).slice(0, 32),
   }
 }

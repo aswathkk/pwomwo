@@ -106,11 +106,35 @@ notification preferences.
 
 ## Backgrounds
 
-Six, per device, under Settings then General: a sky that re-tints with the time
-of day, a flat dark, true black for OLED, and three animated shaders. The
-shaders are ported from [React Bits](https://reactbits.dev/backgrounds) (MIT +
-Commons Clause). They load only when chosen, stop rendering while the tab is
-hidden, and hold a single still frame under `prefers-reduced-motion`.
+Nine, per device, under Settings then General: a sky that re-tints with the
+time of day, a flat dark, true black for OLED, three that are only CSS — a
+hearth-warm gradient whose glow breathes, three pools of colour drifting over a
+deep ground, and a still sheet of graph paper — and three animated shaders. The
+CSS three carry a film grain and run entirely on the compositor: a breathing
+opacity, three transforms, or nothing at all. The shaders are ported from
+[React Bits](https://reactbits.dev/backgrounds) (MIT + Commons Clause). They
+load only when chosen, stop rendering while the tab is hidden, and hold a
+single still frame under `prefers-reduced-motion`.
+
+## Clock faces
+
+Seven, per device, beside the background under Settings then General, and
+each is a different object rather than the same numerals wearing an effect:
+bold; an italic serif with old-style figures; hollow numerals that fill as the
+phase runs; a dot for every minute, the current one draining with the seconds;
+a slanted seven-segment display whose unlit segments stay as faint outlines; a
+dial with the elapsed arc sweeping a ticked rim; and a split-flap departures
+board.
+
+Everything they do is CSS. The store publishes one new clock string a second,
+and a face that had to be advanced per frame from React would re-render the
+page sixty times a second to do it: the dial's sweep and the outline's water
+line are one-second linear transitions, the minute dot drains on a registered
+custom property, and the board's flip is two leaves that rest at the end of
+their animation, so a browser running no animations still lands on the new
+digit. Each face degrades to something still under `prefers-reduced-motion`.
+The picker counts down in every tile, since half of what separates these faces
+is what they do when a digit changes.
 
 ## Assets
 

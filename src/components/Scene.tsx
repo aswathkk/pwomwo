@@ -147,8 +147,48 @@ export function Scene({ theme, isBreak }: { theme: ThemeName; isBreak: boolean }
   if (theme === 'minimal') {
     return (
       <div aria-hidden className="fixed inset-0 bg-ground">
-        {/* A whisper of texture keeps the flat theme from looking broken. */}
+        {/* A whisper of texture keeps the flat theme from looking broken, and
+            a little light from above keeps it from looking like a void. */}
         <div className="scene-stars fixed inset-0 opacity-15" />
+        <div className="scene-toplight fixed inset-0" />
+        <BreakTint isBreak={isBreak} flat />
+      </div>
+    )
+  }
+
+  // The three CSS backgrounds below run entirely on the compositor: the ember
+  // glow breathes on opacity, the mesh pools drift on transform, and the grid
+  // does not move at all. Each one carries a film grain so the gradients read
+  // as something printed rather than something rendered.
+  if (theme === 'ember') {
+    return (
+      <div aria-hidden className="fixed inset-0 overflow-hidden bg-[#120a10]">
+        <div className="ember-sky absolute inset-0" />
+        <div className="ember-glow animate-ember absolute inset-0" />
+        <div className="scene-grain absolute inset-0" />
+        <BreakTint isBreak={isBreak} flat />
+      </div>
+    )
+  }
+
+  if (theme === 'mesh') {
+    return (
+      <div aria-hidden className="fixed inset-0 overflow-hidden bg-[#0b0916]">
+        <div className="mesh-pool mesh-pool-a animate-mesh-a absolute" />
+        <div className="mesh-pool mesh-pool-b animate-mesh-b absolute" />
+        <div className="mesh-pool mesh-pool-c animate-mesh-c absolute" />
+        <div className="scene-grain absolute inset-0" />
+        <BreakTint isBreak={isBreak} flat />
+      </div>
+    )
+  }
+
+  if (theme === 'graph') {
+    return (
+      <div aria-hidden className="fixed inset-0 overflow-hidden bg-[#0a0f1f]">
+        <div className="graph-grid absolute inset-0" />
+        <div className="graph-light absolute inset-0" />
+        <div className="scene-grain absolute inset-0" />
         <BreakTint isBreak={isBreak} flat />
       </div>
     )

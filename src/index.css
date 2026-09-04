@@ -352,6 +352,86 @@ body[data-theme='oled'] {
     90px 60px;
 }
 
+/* A little light from above for the flat backgrounds, so a dark screen reads
+   as a room with the lights down rather than as nothing at all. */
+@utility scene-toplight {
+  background-image: radial-gradient(
+    80% 50% at 50% -10%,
+    rgb(255 255 255 / 0.07),
+    transparent 70%
+  );
+}
+
+/* Film grain: white noise at a few percent, tiled. It is the difference
+   between a gradient that looks rendered and one that looks printed, and it
+   costs one small raster the browser draws once. */
+@utility scene-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  opacity: 0.07;
+}
+
+/* Ember: a hearth after dark. The sky is a still gradient and only the glow
+   breathes, on opacity, so the whole background is one compositor layer
+   changing and nothing repainting. */
+@utility ember-sky {
+  background-image: linear-gradient(180deg, #120a10 0%, #1c0d14 40%, #35131a 72%, #5a2418 100%);
+}
+@utility ember-glow {
+  background-image: radial-gradient(
+    70% 48% at 50% 104%,
+    rgb(255 126 62 / 0.6),
+    rgb(255 90 50 / 0.2) 45%,
+    transparent 72%
+  );
+}
+
+/* Mesh: three pools of colour, each a soft radial gradient the size of the
+   screen, parked mostly off it and drifting on transform. No blur filter:
+   a gradient that fades to nothing over half a screen is already as soft
+   as a blur would make it, at none of the cost. */
+@utility mesh-pool {
+  width: 95vmax;
+  height: 95vmax;
+  border-radius: 50%;
+}
+@utility mesh-pool-a {
+  top: -38vmax;
+  left: -28vmax;
+  background-image: radial-gradient(closest-side, rgb(122 63 214 / 0.8), transparent);
+}
+@utility mesh-pool-b {
+  top: -24vmax;
+  right: -34vmax;
+  background-image: radial-gradient(closest-side, rgb(64 196 178 / 0.55), transparent);
+}
+@utility mesh-pool-c {
+  bottom: -48vmax;
+  left: 8vmax;
+  background-image: radial-gradient(closest-side, rgb(255 120 110 / 0.5), transparent);
+}
+
+/* Graph paper: a minor rule every 24px and a major one every fifth, lit from
+   above and darkened towards the edges so the grid recedes under the chrome. */
+@utility graph-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.075) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.075) 1px, transparent 1px),
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size:
+    120px 120px,
+    120px 120px,
+    24px 24px,
+    24px 24px;
+  background-position: center center;
+}
+@utility graph-light {
+  background-image:
+    radial-gradient(90% 60% at 50% -10%, rgb(120 150 255 / 0.22), transparent 70%),
+    radial-gradient(120% 90% at 50% 50%, transparent 38%, rgb(4 6 14 / 0.55) 100%);
+}
+
 /* Lifts a control's hit area to the 44px floor without changing what is drawn.
    For controls whose size carries meaning: a switch track, a chart's bucket
    pills, links sitting inside a sentence. */
@@ -393,6 +473,34 @@ body[data-theme='oled'] {
   }
 }
 
+@keyframes ember-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Each pool on its own period, so the three never line up and the drift
+   never visibly repeats. */
+@keyframes mesh-a {
+  to {
+    transform: translate3d(11vmax, 7vmax, 0);
+  }
+}
+@keyframes mesh-b {
+  to {
+    transform: translate3d(-9vmax, 10vmax, 0);
+  }
+}
+@keyframes mesh-c {
+  to {
+    transform: translate3d(-7vmax, -11vmax, 0);
+  }
+}
+
 @keyframes twinkle {
   0%,
   100% {
@@ -400,6 +508,53 @@ body[data-theme='oled'] {
   }
   50% {
     opacity: 0.9;
+  }
+}
+
+/* Clock faces (`components/Clock.tsx`). The typographic faces cross-fade the
+   digit that changed with the digit it replaced; the digits that did not
+   change run neither one. */
+@keyframes digit-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes digit-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Split-flap. Both leaves rest at their `to`, which is also the style each
+   layer carries without the animation, so a face with no animation running
+   still shows the new digit. */
+@keyframes flap-fall {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+@keyframes flap-rise {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+
+/* The display's colon, on the second, so it keeps time with the count rather
+   than drifting against it. `steps` because a colon does not fade in life. */
+@keyframes lcd-colon {
+  0%,
+  54% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0.14;
   }
 }
 
@@ -416,15 +571,68 @@ body[data-theme='oled'] {
 .animate-twinkle {
   animation: twinkle 7s ease-in-out infinite;
 }
+.animate-ember {
+  animation: ember-breathe 9s ease-in-out infinite;
+}
+.animate-mesh-a {
+  animation: mesh-a 41s ease-in-out infinite alternate;
+}
+.animate-mesh-b {
+  animation: mesh-b 53s ease-in-out infinite alternate;
+}
+.animate-mesh-c {
+  animation: mesh-c 47s ease-in-out infinite alternate;
+}
 .animate-toast-in {
   animation: toast-in 220ms ease;
+}
+.animate-digit-fade-in {
+  animation: digit-fade-in 320ms ease-out;
+}
+/* `forwards`: the outgoing digit stays mounted, faded out, until the next
+   second replaces it. */
+.animate-digit-fade-out {
+  animation: digit-fade-out 320ms ease-out forwards;
+}
+/* The rising half waits for the falling one to clear the seam, and holds its
+   starting edge-on position until then. */
+.animate-flap-fall {
+  animation: flap-fall 150ms ease-in forwards;
+}
+.animate-flap-rise {
+  animation: flap-rise 170ms cubic-bezier(0.2, 0.85, 0.35, 1) 145ms backwards;
+}
+.animate-lcd-colon {
+  animation: lcd-colon 1s steps(1, end) infinite;
+}
+
+/* The minutes face's current dot: a pie eaten clockwise from twelve, the
+   way a minute goes round a clock. Registering the fraction lets it
+   transition, so the drain is a steady one-second sweep rather than sixty
+   small jumps a minute. */
+@property --dot-frac {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+.dot-draining {
+  background: conic-gradient(
+    rgb(255 255 255 / 0.22) calc((1 - var(--dot-frac)) * 360deg),
+    currentColor 0
+  );
+  transition: --dot-frac 1s linear;
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* Looping and spatial motion goes entirely. */
   .animate-skydrift,
   .animate-twinkle,
-  .animate-toast-in {
+  .animate-ember,
+  .animate-mesh-a,
+  .animate-mesh-b,
+  .animate-mesh-c,
+  .animate-toast-in,
+  .animate-lcd-colon {
     animation: none;
   }
 

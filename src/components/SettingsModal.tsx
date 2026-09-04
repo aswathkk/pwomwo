@@ -47,6 +47,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cls, Dot, Row, Section, Stepper, Icons } from './primitives'
 import { BackgroundPicker } from './BackgroundPicker'
+import { ClockStylePicker } from './ClockStylePicker'
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -273,6 +274,8 @@ function GeneralTab({ draft, set }: { draft: Settings; set: Setter }) {
       </Row>
 
       <BackgroundPicker value={draft.theme} onChange={(v) => set('theme', v)} />
+
+      <ClockStylePicker value={draft.clockStyle} onChange={(v) => set('clockStyle', v)} />
 
       <Row
         label="Zen view while a timer runs"

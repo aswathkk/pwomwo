@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useRef, type KeyboardEvent, type ReactNode } from 'react'
 import {
   ArrowCounterClockwiseIcon,
   ArrowLeftIcon,
@@ -37,6 +37,52 @@ export function chromeFade(hidden: boolean): string {
   return `transition-opacity duration-500 ease-out ${
     hidden ? 'pointer-events-none opacity-0' : 'opacity-100'
   }`
+}
+
+/**
+ * Roving focus and arrow-key selection for a grid of radio tiles. Both of the
+ * pickers in settings choose by eye rather than by name, so both are radio
+ * grids: one tab stop, and the arrows move the *selection*, not just the
+ * focus. Anything less leaves a keyboard on half a dozen buttons that merely
+ * look related.
+ */
+export function useRadioTiles<T extends string>(
+  ids: readonly T[],
+  value: T,
+  onChange: (next: T) => void,
+) {
+  const tiles = useRef<(HTMLButtonElement | null)[]>([])
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    const index = ids.indexOf(value)
+    const last = ids.length - 1
+    let next = index
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        next = index >= last ? 0 : index + 1
+        break
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        next = index <= 0 ? last : index - 1
+        break
+      case 'Home':
+        next = 0
+        break
+      case 'End':
+        next = last
+        break
+      default:
+        return
+    }
+    event.preventDefault()
+    const id = ids[next]
+    if (id === undefined) return
+    onChange(id)
+    tiles.current[next]?.focus()
+  }
+
+  return { tiles, onKeyDown }
 }
 
 export function Dot({ tone }: { tone: 'good' | 'warn' | 'off' }) {

@@ -5,9 +5,10 @@ the history and statistics page of the Marinara Pomodoro Assistant, and live
 sync between your own devices over WebRTC. There is no account, no backend, and
 no third-party sync service.
 
-Everything is stored in IndexedDB on the device that recorded it. The only
-network traffic is this site's own assets, an optional public STUN lookup, and
-the paired device itself.
+Everything is stored in IndexedDB on the device that recorded it. By default,
+the only network traffic is this site's own assets, an optional public STUN
+lookup, and the paired device itself. The optional Music panel connects to
+YouTube when you load a video or playlist, or reopen Music with a saved link.
 
 ## Running it
 
@@ -136,10 +137,26 @@ digit. Each face degrades to something still under `prefers-reduced-motion`.
 The picker counts down in every tile, since half of what separates these faces
 is what they do when a digit changes.
 
+## Music
+
+Choose **Music** at the bottom of the timer, paste a YouTube video or playlist
+link (YouTube Music links work too), and choose **Load music**. Press play in
+the visible YouTube player. The last link is saved on this device; reopening
+Music restores it without autoplaying. Closing the panel stops playback.
+
+Music uses YouTube's official IFrame player, with its normal controls and ads,
+and needs an internet connection. Pausing the timer pauses music too. Resume
+the timer, then press play in the YouTube player to resume listening. Music
+does not automatically start when the timer starts or changes phase.
+The player stays visible while focusing; playback pauses when the app is
+hidden, the player scrolls out of view, or an app overlay opens. It does not
+automatically resume afterward. A video whose owner disables embedding needs
+another link or the **Open on YouTube** fallback. No API key is required.
+
 ## Assets
 
-Space Grotesk (SIL OFL) is self-hosted in `src/fonts` so the app has no
-third-party origin. The backgrounds are CSS, or a shader compiled at runtime,
+Space Grotesk (SIL OFL) is self-hosted in `src/fonts` without a third-party
+font origin. The backgrounds are CSS, or a shader compiled at runtime,
 and the alert chimes are synthesised with the Web Audio API rather than shipped
 as files.
 

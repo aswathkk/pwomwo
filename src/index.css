@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-/* Space Grotesk, SIL OFL, self-hosted so the app has no third-party origin.
+/* Space Grotesk, SIL OFL, self-hosted without a third-party font origin.
    Bun inlines these four latin subsets into the stylesheet as base64 and offers
    no way to opt out of that for CSS `url()`, so the first paint waits on ~53 KB
    of font data. `font-display: swap` covers the gap, and the service worker
@@ -44,6 +44,113 @@
    portrait screen. The timer reflows into two columns there rather than
    overflowing off the top and bottom of the viewport. */
 @custom-variant landscape-short (@media (orientation: landscape) and (max-height: 520px));
+
+/* Music joins the timer rather than floating over it. The player stays visible
+   while the timer runs, including when the rest of the chrome would fade. */
+.focus-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.focus-workspace.has-music {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-auto-rows: max-content;
+  align-content: safe center;
+  align-items: center;
+  gap: 24px;
+  overflow: auto;
+  padding: 24px calc(32px + var(--safe-r)) 24px calc(32px + var(--safe-l));
+}
+
+.has-music main { min-width: 0; min-height: 300px; }
+.has-music .text-count { font-size: clamp(4rem, min(16vw, 28vh), 9rem); }
+
+.music-panel {
+  min-width: 0;
+  width: 100%;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--color-panel);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.25);
+}
+
+.music-player {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 200px;
+  background: black;
+}
+
+.music-player iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  border: 0;
+}
+
+.music-empty {
+  display: flex;
+  min-height: 200px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+  color: var(--color-ink-tertiary);
+}
+
+.music-empty p { font-size: 14px; font-weight: 500; color: white; }
+.music-empty span, .music-status { font-size: 12px; line-height: 1.6; }
+.music-status { margin-top: 12px; }
+
+.music-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--color-accent);
+  font-size: 12px;
+  text-underline-offset: 3px;
+}
+
+.music-external:hover { text-decoration: underline; }
+
+@media (max-width: 1000px) and (min-height: 521px) {
+  .focus-workspace.has-music {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: safe center;
+    justify-items: center;
+    gap: 20px;
+    padding: 16px calc(16px + var(--safe-r)) 16px calc(16px + var(--safe-l));
+  }
+  .has-music main { min-height: 0; gap: 10px; }
+  .has-music .text-count { font-size: clamp(3.5rem, 18vw, 6rem); }
+  .music-panel { max-width: 400px; padding: 16px; }
+}
+
+@media (max-height: 740px) and (min-height: 521px) and (max-width: 1000px) {
+  .focus-workspace.has-music { align-content: start; }
+}
+
+@media (max-height: 520px) {
+  .focus-workspace.has-music {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+    gap: 12px;
+    padding: 12px;
+  }
+  .has-music main { display: flex; min-height: 280px; gap: 12px; padding: 0; }
+  .has-music .text-count { font-size: clamp(3rem, 10vw, 5rem); }
+  .music-panel { padding: 12px; }
+}
+
+@media (max-height: 520px) and (max-width: 600px) {
+  .focus-workspace.has-music { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+}
 
 @theme {
   --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;

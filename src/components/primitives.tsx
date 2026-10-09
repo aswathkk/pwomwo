@@ -5,6 +5,7 @@ import {
   ArrowsOutIcon,
   ChartBarIcon,
   CheckCircleIcon,
+  MusicNotesIcon,
   PlusIcon,
   SkipForwardIcon,
   SlidersHorizontalIcon,
@@ -178,6 +179,7 @@ export function Section({ title, extra, children }: { title: string; extra?: Rea
 export const ICON_WEIGHT = 'bold' as const
 
 export const Icons = {
+  music: <MusicNotesIcon size={18} weight={ICON_WEIGHT} aria-hidden />,
   history: <ChartBarIcon size={17} weight={ICON_WEIGHT} aria-hidden />,
   settings: <SlidersHorizontalIcon size={17} weight={ICON_WEIGHT} aria-hidden />,
   fullscreen: <ArrowsOutIcon size={17} weight={ICON_WEIGHT} aria-hidden />,

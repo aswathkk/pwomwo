@@ -1,8 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { store } from '../store'
 import { applyThemeColor } from '../backgrounds'
 import type { ThemeName } from '../types'
-import { useAppState } from '../hooks/useStore'
+import { useAppState, usePendingConfirm } from '../hooks/useStore'
 import { Scene } from './Scene'
 import { TopBar } from './TopBar'
 import { TimerStage } from './TimerStage'
@@ -13,6 +13,7 @@ const HistoryPanel = lazy(() => import('./HistoryPanel').then((m) => ({ default:
 const PairingDialog = lazy(() =>
   import('./PairingDialog').then((m) => ({ default: m.PairingDialog })),
 )
+const MusicPanel = lazy(() => import('./MusicPanel').then((m) => ({ default: m.MusicPanel })))
 import { ConfirmHost } from './ConfirmHost'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
@@ -36,14 +37,21 @@ function toggleFullscreen(): void {
 
 export function App() {
   const state = useAppState()
+  const pendingConfirm = usePendingConfirm()
   const [overlay, setOverlay] = useState<Overlay>('none')
   const [chromeHidden, setChromeHidden] = useState(false)
   const [settingsTab, setSettingsTab] = useState('timers')
+  const [musicOpen, setMusicOpen] = useState(false)
+  const musicButton = useRef<HTMLButtonElement>(null)
   // Set while the settings dialog has a background selected that has not been
   // saved yet, so the choice is previewed full-screen instead of in a swatch.
   const [previewTheme, setPreviewTheme] = useState<ThemeName | null>(null)
 
   const close = useCallback(() => setOverlay('none'), [])
+  const closeMusic = useCallback(() => {
+    setMusicOpen(false)
+    musicButton.current?.focus()
+  }, [])
   const openSettingsAt = useCallback((tab: string) => {
     setSettingsTab(tab)
     setOverlay('settings')
@@ -56,6 +64,7 @@ export function App() {
     // Fullscreen is read per event rather than captured: it changes without a
     // React render, and a stale value here would strand the chrome on screen.
     const armed = () =>
+      !musicOpen &&
       overlay === 'none' &&
       (document.fullscreenElement !== null ||
         (store.settings.idleHideControls && state.doc.status === 'running'))
@@ -95,15 +104,16 @@ export function App() {
       window.removeEventListener('pointercancel', onRelease)
       document.removeEventListener('fullscreenchange', onMove)
     }
-  }, [overlay, state.doc.status, state.settings.idleHideControls])
+  }, [overlay, state.doc.status, state.settings.idleHideControls, musicOpen])
 
   // Desktop shortcuts, ignored in fields and while an overlay is open (TMR-10).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
+      if (target?.closest('[data-timer-shortcuts="off"]')) return
       if (target?.isContentEditable || /^(input|select|textarea)$/i.test(target?.tagName ?? '')) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (overlay !== 'none') return
+      if (overlay !== 'none' || pendingConfirm) return
 
       switch (event.key) {
         case ' ':
@@ -142,7 +152,7 @@ export function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [overlay, openSettingsAt])
+  }, [overlay, openSettingsAt, pendingConfirm])
 
   const { doc, settings, remainingMs } = state
   const theme = previewTheme ?? settings.theme
@@ -185,18 +195,40 @@ export function App() {
           />
         </div>
 
-        <TimerStage
-          doc={doc}
-          settings={settings}
-          remainingMs={remainingMs}
-          announcement={store.announcement}
-          chromeHidden={chromeHidden}
-          onOpenSettings={() => openSettingsAt('timers')}
-        />
+        <div className={`focus-workspace ${musicOpen ? 'has-music' : ''}`}>
+          <TimerStage
+            doc={doc}
+            settings={settings}
+            remainingMs={remainingMs}
+            announcement={store.announcement}
+            chromeHidden={chromeHidden}
+            onOpenSettings={() => openSettingsAt('timers')}
+          />
+          {musicOpen ? (
+            <Suspense fallback={<p className="music-panel text-[13px] text-ink-secondary" role="status">Loading music panel…</p>}>
+              <MusicPanel
+                onClose={closeMusic}
+                suspended={overlay !== 'none' || !!pendingConfirm || doc.status === 'paused'}
+              />
+            </Suspense>
+          ) : null}
+        </div>
 
         <div
-          className={`flex items-end justify-end pr-[calc(1.125rem+var(--safe-r))] pb-[calc(1rem+var(--safe-b))] pl-[calc(1.125rem+var(--safe-l))] sm:pr-[calc(2rem+var(--safe-r))] sm:pb-[calc(1.375rem+var(--safe-b))] sm:pl-[calc(2rem+var(--safe-l))] landscape-short:pb-[calc(0.625rem+var(--safe-b))] ${fade}`}
+          className={`flex shrink-0 items-end justify-between pr-[calc(1.125rem+var(--safe-r))] pb-[calc(1rem+var(--safe-b))] pl-[calc(1.125rem+var(--safe-l))] sm:pr-[calc(2rem+var(--safe-r))] sm:pb-[calc(1.375rem+var(--safe-b))] sm:pl-[calc(2rem+var(--safe-l))] landscape-short:pb-[calc(0.625rem+var(--safe-b))] ${fade}`}
         >
+          <Button
+            ref={musicButton}
+            variant="ghost"
+            className="h-11 border-none px-3 text-[13px]"
+            aria-expanded={musicOpen}
+            aria-controls="music-panel"
+            data-timer-shortcuts="off"
+            onClick={() => setMusicOpen((open) => !open)}
+          >
+            {Icons.music}
+            Music
+          </Button>
           <Button
             variant="ghost"
             size="icon-xl"

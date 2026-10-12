@@ -45,36 +45,48 @@
    overflowing off the top and bottom of the viewport. */
 @custom-variant landscape-short (@media (orientation: landscape) and (max-height: 520px));
 
-/* Music joins the timer rather than floating over it. The player stays visible
-   while the timer runs, including when the rest of the chrome would fade. */
+/* Music floats above the workspace so opening or moving it never reflows the timer. */
 .focus-workspace {
   display: flex;
   flex: 1;
   min-height: 0;
 }
 
-.focus-workspace.has-music {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  grid-auto-rows: max-content;
-  align-content: safe center;
-  align-items: center;
-  gap: 24px;
-  overflow: auto;
-  padding: 24px calc(32px + var(--safe-r)) 24px calc(32px + var(--safe-l));
-}
-
-.has-music main { min-width: 0; min-height: 300px; }
-.has-music .text-count { font-size: clamp(4rem, min(16vw, 28vh), 9rem); }
-
 .music-panel {
-  min-width: 0;
-  width: 100%;
+  position: fixed;
+  z-index: 20;
+  right: calc(24px + var(--safe-r));
+  bottom: calc(80px + var(--safe-b));
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100vw - 24px - var(--safe-l) - var(--safe-r)));
+  max-height: calc(100dvh - 24px - var(--safe-t) - var(--safe-b));
   padding: 20px;
   border-radius: 16px;
   background: var(--color-panel);
   box-shadow: 0 16px 48px rgb(0 0 0 / 0.25);
 }
+
+.music-panel-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.music-drag-handle {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  text-align: left;
+}
+
+.music-panel[data-dragging] .music-drag-handle { cursor: grabbing; }
+.music-panel[data-dragging] .music-player { pointer-events: none; }
 
 .music-player {
   width: 100%;
@@ -119,37 +131,8 @@
 
 .music-external:hover { text-decoration: underline; }
 
-@media (max-width: 1000px) and (min-height: 521px) {
-  .focus-workspace.has-music {
-    grid-template-columns: minmax(0, 1fr);
-    align-content: safe center;
-    justify-items: center;
-    gap: 20px;
-    padding: 16px calc(16px + var(--safe-r)) 16px calc(16px + var(--safe-l));
-  }
-  .has-music main { min-height: 0; gap: 10px; }
-  .has-music .text-count { font-size: clamp(3.5rem, 18vw, 6rem); }
-  .music-panel { max-width: 400px; padding: 16px; }
-}
-
-@media (max-height: 740px) and (min-height: 521px) and (max-width: 1000px) {
-  .focus-workspace.has-music { align-content: start; }
-}
-
-@media (max-height: 520px) {
-  .focus-workspace.has-music {
-    grid-template-columns: minmax(0, 1fr) 320px;
-    align-items: start;
-    gap: 12px;
-    padding: 12px;
-  }
-  .has-music main { display: flex; min-height: 280px; gap: 12px; padding: 0; }
-  .has-music .text-count { font-size: clamp(3rem, 10vw, 5rem); }
+@media (max-width: 600px), (max-height: 520px) {
   .music-panel { padding: 12px; }
-}
-
-@media (max-height: 520px) and (max-width: 600px) {
-  .focus-workspace.has-music { grid-template-columns: minmax(0, 1fr); justify-items: center; }
 }
 
 @theme {
@@ -269,6 +252,7 @@ body[data-theme='oled'] {
 
 /* Layer ladder, in paint order. Each step exists because something above it
    must be reachable while it is open:
+     20  floating music panel
      30  device popover      50  history panel      60  settings modal
      70  pairing dialog      80  toasts             90  confirm dialog
     100  tooltip                                                        */

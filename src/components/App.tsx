@@ -195,7 +195,7 @@ export function App() {
           />
         </div>
 
-        <div className={`focus-workspace ${musicOpen ? 'has-music' : ''}`}>
+        <div className="focus-workspace">
           <TimerStage
             doc={doc}
             settings={settings}
